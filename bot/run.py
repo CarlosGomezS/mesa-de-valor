@@ -339,6 +339,7 @@ def run(password: str, force: bool = False):
     last = state.get("last_scan")
     full = force or not last or pt(last) <= t - timedelta(hours=a["horas_entre_busquedas"]) + timedelta(minutes=10)
     sports = list(dict.fromkeys((s["ligas"] if full else []) + list(soon)))
+    scan_summary = []
     for sport in sports:
         try:
             ref = reference(odds.odds(sport, books), a["metodo"])
@@ -356,6 +357,9 @@ def run(password: str, force: bool = False):
         if sport not in s["ligas"] or not full:
             continue
         cands = find_value(ref, s, allowed)
+        in_window = sum(1 for r in ref.values()
+                        if 20 <= (pt(r["commence"]) - t).total_seconds() / 60 <= a["horas_vista"] * 60)
+        scan_summary.append((sport, len(ref), in_window, len(cands)))
         if s["ficticio"]["activo"]:
             for b in place(state, s, sport, cands, "ficticio"):
                 if s["ficticio"].get("avisar"):
@@ -370,6 +374,15 @@ def run(password: str, force: bool = False):
                             f"Después pulsa «La he hecho» en la web.")
     if full:
         state["last_scan"] = iso(t)
+        names = {"soccer_spain_la_liga": "LaLiga", "soccer_epl": "Premier", "soccer_uefa_champs_league": "Champions",
+                 "soccer_uefa_europa_league": "Europa League", "soccer_italy_serie_a": "Serie A",
+                 "soccer_germany_bundesliga": "Bundesliga", "soccer_france_ligue_one": "Ligue 1",
+                 "soccer_spain_segunda_division": "Segunda", "basketball_euroleague": "Euroliga", "basketball_nba": "NBA"}
+        parts = [f"{names.get(sp, sp)}: {n} partidos, {w} en las próximas {a['horas_vista']} h, {c} con valor"
+                 for sp, n, w, c in scan_summary]
+        state["last_scan_summary"] = {"ts": iso(t), "lines": parts,
+                                      "found": sum(c for *_, c in scan_summary)}
+        note(state, "Búsqueda: " + " · ".join(parts) if parts else "Búsqueda: sin datos de cuotas")
     # limpiar fotos viejas
     state["snapshots"] = {k: v for k, v in state["snapshots"].items() if pt(v["commence"]) > t - timedelta(days=2)}
 

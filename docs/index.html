@@ -199,6 +199,7 @@ details summary{cursor:pointer;font-weight:600}
       <div class="card">
         <div class="row" style="justify-content:space-between"><p class="small muted" id="updated">—</p>
           <div class="row"><button class="btn sm ghost" id="refresh">Actualizar</button><button class="btn sm" id="scanNow">Buscar ahora</button></div></div>
+        <div id="scanBox" class="note" hidden></div>
         <details><summary class="small">Actividad del bot</summary><div class="log" id="log"></div></details>
       </div>
     </div>
@@ -463,7 +464,18 @@ async function loadState(){
 }
 $('refresh').onclick=()=>loadState().then(()=>toast('Actualizado'));
 $('scanNow').onclick=async()=>{if(!TOKEN){toast('Pon tu token de GitHub en Ajustes');return}
-  try{await dispatch();toast('Buscando. En 1–2 minutos verás el resultado.');setTimeout(loadState,90000)}catch(e){toast(e.message)}};
+  const btn=$('scanNow'),before=STATE?.last_scan_summary?.ts||'';
+  try{await dispatch()}catch(e){toast(e.message);return}
+  btn.disabled=true;let secs=0;
+  const tick=setInterval(async()=>{secs+=10;btn.textContent='Buscando… '+secs+' s';
+    if(secs%20===0){await loadState();const sm=STATE?.last_scan_summary;
+      if(sm&&sm.ts!==before){clearInterval(tick);btn.disabled=false;btn.textContent='Buscar ahora';showScan(true)}}
+    if(secs>=300){clearInterval(tick);btn.disabled=false;btn.textContent='Buscar ahora';toast('La búsqueda tarda más de lo normal. Pulsa «Actualizar» en un rato.')}},10000);
+  btn.textContent='Buscando… 0 s'};
+function showScan(fresh){const sm=STATE?.last_scan_summary,box=$('scanBox');if(!sm){box.hidden=true;return}
+  box.hidden=false;box.className='note '+(sm.found?'ok':'');
+  box.innerHTML=`<b>${fresh?'Búsqueda terminada':'Última búsqueda'} (${esc(when(sm.ts))}):</b> ${sm.found?sm.found+' apuesta(s) con valor.':'ninguna apuesta con valor.'}<br><span class="small">${sm.lines.map(esc).join('<br>')}</span>`+
+    (sm.found?'':'<br><span class="small muted">Es normal: solo apuesta cuando una casa paga al menos un 3 % más de lo que vale el resultado.</span>')}
 
 const settledSt=['ganada','perdida','nula'];
 function stats(bets,b0){
@@ -501,6 +513,7 @@ function renderState(){
   const open=L.filter(b=>b.status==='abierta');$('open').innerHTML=open.length?open.map(b=>betCard(b)).join(''):'<p class="muted small">No hay apuestas en juego. El bot busca solo cada pocas horas y te avisa por Telegram.</p>';
   $('hist').innerHTML=L.slice().reverse().map(b=>betCard(b)).join('')||'<p class="muted small">Aún no hay apuestas.</p>';
   $('updated').textContent=STATE?.updated?'Última revisión del bot: '+when(STATE.updated)+(STATE.credits?` · créditos de cuotas: ${STATE.credits}`:''):'El bot aún no ha hecho su primera pasada.';
+  showScan(false);
   $('log').innerHTML=(STATE?.log||[]).slice().reverse().map(l=>esc(when(l.ts)+' · '+l.text)).join('<br>');
   const a=SETTINGS.avanzado,lastStop=(STATE?.log||[]).slice().reverse().find(l=>l.text.startsWith(MODE+': sin apuestas'));
   $('stopNote').hidden=!lastStop||(Date.now()-new Date(lastStop.ts))>864e5;if(lastStop)$('stopNote').textContent='Pausa automática: '+lastStop.text.split('(')[1]?.replace(')','');
