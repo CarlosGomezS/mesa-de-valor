@@ -133,8 +133,18 @@ class Odds:
         self.used += 1
         return data or []
 
-    def odds(self, sport: str, books: list[str]):
+    def events_count(self, sport: str, frm: datetime, to: datetime) -> int:
+        """Partidos de la liga en la ventana. Esta consulta es gratuita (no gasta créditos)."""
+        q = {"apiKey": self.key, "commenceTimeFrom": frm.strftime("%Y-%m-%dT%H:%M:%SZ"),
+             "commenceTimeTo": to.strftime("%Y-%m-%dT%H:%M:%SZ")}
+        data, _ = http_json(f"{self.BASE}/sports/{sport}/events?{urllib.parse.urlencode(q)}")
+        return len(data or [])
+
+    def odds(self, sport: str, books: list[str], frm: datetime | None = None, to: datetime | None = None):
         q = {"markets": "h2h", "oddsFormat": "decimal"}
+        if frm and to:
+            q["commenceTimeFrom"] = frm.strftime("%Y-%m-%dT%H:%M:%SZ")
+            q["commenceTimeTo"] = to.strftime("%Y-%m-%dT%H:%M:%SZ")
         if books:
             q["bookmakers"] = ",".join(sorted(set(["pinnacle"] + books)))
         else:
@@ -390,9 +400,18 @@ def run(password: str, force: bool = False):
     sports = list(dict.fromkeys((s["ligas"] if full else []) + list(soon)))
     scan_summary = []
     new_fict: dict[str, list] = {}
+    skipped = []
     for sport in sports:
         try:
-            ref = reference(odds.odds(sport, books), a["metodo"])
+            if sport in soon and not full:
+                ref = reference(odds.odds(sport, books, t, t + timedelta(minutes=90)), a["metodo"])
+            else:
+                frm, to = t, t + timedelta(hours=a["horas_vista"])
+                if odds.events_count(sport, frm, to) == 0:   # gratis: si no hay partidos, no gastamos créditos
+                    skipped.append(sport)
+                    scan_summary.append((sport, 0, 0, 0))
+                    continue
+                ref = reference(odds.odds(sport, books, frm, to), a["metodo"])
         except Exception as e:
             note(state, f"No pude leer cuotas de {sport}: {e}")
             continue

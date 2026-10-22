@@ -27,7 +27,10 @@ class FakeOdds:
     def __init__(self, key):
         self.remaining, self.used = "480", 0
 
-    def odds(self, sport, books):
+    def events_count(self, sport, frm, to):
+        return len(FakeOdds.events) if sport == "soccer_spain_la_liga" else 0
+
+    def odds(self, sport, books, frm=None, to=None):
         FakeOdds.calls.append(("odds", sport))
         return FakeOdds.events if sport == "soccer_spain_la_liga" else []
 
@@ -94,7 +97,7 @@ class E2E(unittest.TestCase):
         # segunda pasada inmediata: corta, sin repetir ni gastar consultas
         FakeOdds.calls = []
         run.run(PW)
-        self.assertEqual(FakeOdds.calls, [])
+        self.assertEqual(FakeOdds.calls, [])   # pasada corta: no gasta créditos
         self.assertEqual(len(self.state()["ledgers"]["f_valor"]["bets"]), 1)
 
         # confirmo desde la web la apuesta real a 2.50 con 1 €
