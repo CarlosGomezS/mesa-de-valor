@@ -36,7 +36,8 @@ DEFAULT_SETTINGS = {
     "odds_api_key": "", "telegram_token": "", "telegram_chat_id": "",
     "ficticio": {"activo": True, "banca_inicial": 50.0, "avisar": True},
     "real": {"activo": False, "banca_inicial": 50.0, "metodo": "valor"},
-    "ligas": ["soccer_spain_la_liga", "soccer_epl", "soccer_uefa_champs_league"],
+    "ligas": ["soccer_spain_la_liga", "soccer_spain_segunda_division", "soccer_efl_champ",
+              "soccer_netherlands_eredivisie", "soccer_portugal_primeira_liga", "soccer_germany_bundesliga2"],
     "casas": ["williamhill", "sport888", "betway", "betfair_sb_uk", "leovegas"],
     "resumen_diario": True,
     "avanzado": {"valor_minimo": 0.03, "valor_maximo": 0.15, "fraccion_kelly": 0.25, "tope": 0.04,
@@ -49,12 +50,30 @@ DEFAULT_SETTINGS = {
 # ============================ métodos ============================
 # Cada método tiene su propia cartera ficticia con el mismo dinero inicial.
 METHODS = {
-    "valor":     {"nombre": "Valor contra Pinnacle", "ref": "pinnacle", "min_ev": None, "max_odds": None, "stake": "kelly"},
-    "estricto":  {"nombre": "Valor alto", "ref": "pinnacle", "min_ev": 0.05, "max_odds": 4.0, "stake": "kelly"},
-    "favoritos": {"nombre": "Favoritos con valor", "ref": "pinnacle", "min_ev": 0.02, "max_odds": 2.2, "stake": "kelly"},
-    "plano":     {"nombre": "Valor con importe fijo", "ref": "pinnacle", "min_ev": None, "max_odds": None, "stake": "flat"},
-    "consenso":  {"nombre": "Consenso de casas", "ref": "consensus", "min_ev": 0.05, "max_odds": None, "stake": "flat"},
-    "control":   {"nombre": "Control: siempre el favorito", "ref": "control", "min_ev": None, "max_odds": None, "stake": "flat"},
+    # --- valor contra Pinnacle (la referencia más precisa) ---
+    "valor":       {"nombre": "Valor contra Pinnacle", "ref": "pinnacle"},
+    "estricto":    {"nombre": "Valor alto (5 %+)", "ref": "pinnacle", "min_ev": 0.05, "max_odds": 4.0},
+    "volumen":     {"nombre": "Volumen (1,5 %+)", "ref": "pinnacle", "min_ev": 0.015},
+    "favoritos":   {"nombre": "Favoritos con valor", "ref": "pinnacle", "min_ev": 0.02, "max_odds": 2.2},
+    "medias":      {"nombre": "Cuotas medias (1,6–3)", "ref": "pinnacle", "min_odds": 1.6, "max_odds": 3.0},
+    "longshots":   {"nombre": "Sorpresas con valor", "ref": "pinnacle", "min_ev": 0.05, "min_odds": 4.0},
+    "empates":     {"nombre": "Solo empates", "ref": "pinnacle", "min_ev": 0.02, "outcome": "draw"},
+    "local":       {"nombre": "Solo local", "ref": "pinnacle", "outcome": "home"},
+    "visitante":   {"nombre": "Solo visitante", "ref": "pinnacle", "outcome": "away"},
+    "cerca":       {"nombre": "Cerca del inicio (<6 h)", "ref": "pinnacle", "min_ev": 0.02, "max_h": 6},
+    "anticipado":  {"nombre": "Con antelación (>12 h)", "ref": "pinnacle", "min_ev": 0.04, "min_h": 12},
+    "steam":       {"nombre": "Movimiento de Pinnacle", "ref": "steam", "min_ev": 0.015},
+    "futbol":      {"nombre": "Solo fútbol", "ref": "pinnacle", "sport": "soccer"},
+    "baloncesto":  {"nombre": "Solo baloncesto", "ref": "pinnacle", "sport": "basketball"},
+    "francotirador": {"nombre": "Francotirador (1 al día)", "ref": "pinnacle", "min_ev": 0.04, "max_dia": 1},
+    # --- otras referencias ---
+    "consenso":    {"nombre": "Consenso de casas", "ref": "consensus", "min_ev": 0.05, "stake": "flat"},
+    "doble":       {"nombre": "Doble confirmación", "ref": "both"},
+    # --- gestión del dinero ---
+    "plano":       {"nombre": "Valor con importe fijo", "ref": "pinnacle", "stake": "flat"},
+    "agresivo":    {"nombre": "Valor agresivo (½ Kelly)", "ref": "pinnacle", "kf": 0.5},
+    # --- comparación ---
+    "control":     {"nombre": "Control: siempre el favorito", "ref": "control", "stake": "flat"},
 }
 FLAT_PCT = 0.01
 
@@ -206,7 +225,7 @@ def ledger_bank(state: dict, s: dict, name: str) -> float:
     return bank0(s, name) + sum(b.get("pnl") or 0 for b in bets if b["status"] in ("ganada", "perdida", "nula"))
 
 
-def risk_block(state: dict, s: dict, name: str, bank: float) -> str | None:
+def risk_block(state: dict, s: dict, name: str, bank: float, m: dict | None = None) -> str | None:
     a, b0 = s["avanzado"], bank0(s, name)
     bets = state["ledgers"][name]["bets"]
     t = now()
@@ -219,7 +238,7 @@ def risk_block(state: dict, s: dict, name: str, bank: float) -> str | None:
         return "límite de pérdida semanal alcanzado"
     if bank <= b0 * (1 - a["parar_si_cae"]):
         return "la banca ha caído demasiado: pausa y revisa"
-    if sum(1 for b in bets if pt(b["created"]) > t - timedelta(days=1) and b["status"] != "descartada") >= a["max_dia"]:
+    if sum(1 for b in bets if pt(b["created"]) > t - timedelta(days=1) and b["status"] != "descartada") >= ((m or {}).get("max_dia") or a["max_dia"]):
         return "máximo de apuestas en 24 h"
     return None
 
@@ -228,19 +247,26 @@ def exposure(state, name) -> float:
     return sum(b["stake"] for b in state["ledgers"][name]["bets"] if b["status"] in ("abierta", "propuesta"))
 
 
-def find_value(ref: dict, s: dict, allowed: set, m: dict | None = None) -> list[tuple]:
+def find_value(ref: dict, s: dict, allowed: set, m: dict | None = None, sport: str = "") -> list[tuple]:
     a = s["avanzado"]
     m = m or METHODS["valor"]
-    min_ev = m["min_ev"] if m["min_ev"] is not None else a["valor_minimo"]
+    if m.get("sport") and not sport.startswith(m["sport"]):
+        return []
+    min_ev = m["min_ev"] if m.get("min_ev") is not None else a["valor_minimo"]
     found = []
     for eid, r in ref.items():
         mins = (pt(r["commence"]) - now()).total_seconds() / 60
         if mins < 20 or mins > a["horas_vista"] * 60:
             continue
-        probs = r["consensus"] if m["ref"] == "consensus" else r["fair"]
-        if not probs:
+        if (m.get("max_h") and mins > m["max_h"] * 60) or (m.get("min_h") and mins < m["min_h"] * 60):
             continue
-        fav = max((n for n in r["fair"] if n != "Draw"), key=lambda n: r["fair"][n])
+        kind = m["ref"]
+        probs = r["consensus"] if kind == "consensus" else r["fair"]
+        if not probs or (kind == "both" and not r.get("consensus")):
+            continue
+        non_draw = [n for n in r["fair"] if n != "Draw"]
+        fav = max(non_draw, key=lambda n: r["fair"][n])
+        allowed_out = {"draw": {"Draw"}, "home": {r["home"]}, "away": {r["away"]}}.get(m.get("outcome"))
         best = None
         for key, b in r["books"].items():
             if key == "pinnacle" or key.startswith("betfair_ex") or key == "matchbook" or (allowed and key not in allowed):
@@ -249,13 +275,21 @@ def find_value(ref: dict, s: dict, allowed: set, m: dict | None = None) -> list[
                 p = probs.get(name)
                 if not p:
                     continue
-                if m["ref"] == "control":
+                if kind == "control":
                     if name == fav and (not best or price > best[4]):
                         best = (st.ev_back(r["fair"][name], price), key, b["title"], name, price, r["fair"][name])
                     continue
-                if m["max_odds"] and price > m["max_odds"]:
+                if allowed_out and name not in allowed_out:
+                    continue
+                if (m.get("max_odds") and price > m["max_odds"]) or (m.get("min_odds") and price < m["min_odds"]):
                     continue
                 ev = st.ev_back(p, price)
+                if kind == "both" and st.ev_back(r["consensus"][name], price) < min_ev:
+                    continue
+                if kind == "steam":
+                    prev = (r.get("prev") or {}).get(name)
+                    if prev is None or p - prev < 0.02:      # Pinnacle ha subido su probabilidad 2 puntos o más
+                        continue
                 if min_ev <= ev <= a["valor_maximo"] and (not best or ev > best[0]):
                     best = (ev, key, b["title"], name, price, p)
         if best:
@@ -271,20 +305,21 @@ def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict
     bets = state["ledgers"][name]["bets"]
     new = []
     bank = ledger_bank(state, s, name)
-    block = risk_block(state, s, name, bank)
+    block = risk_block(state, s, name, bank, m)
     if block:
         note(state, f"{name}: sin apuestas nuevas ({block})")
         return new
     for eid, r, ev, key, title, outcome, price, p in cands:
         if any(b["event_id"] == eid and b["status"] != "descartada" for b in bets):
             continue
-        if m["stake"] == "flat":
+        if m.get("stake") == "flat":
             stake = round(max(a["minima"], bank * FLAT_PCT), 2) if bank >= a["minima"] else 0
         else:
-            stake = st.size_stake(bank, st.kelly_back(p, price), rules)
+            r_ = rules if not m.get("kf") else st.StakeRules(m["kf"], a["tope"], a["minima"], True)
+            stake = st.size_stake(bank, st.kelly_back(p, price), r_)
         if stake <= 0 or exposure(state, name) + stake > a["max_exposicion"] * bank:
             continue
-        if risk_block(state, s, name, bank):
+        if risk_block(state, s, name, bank, m):
             break
         b = {"id": secrets.token_hex(4), "created": iso(now()), "sport": sport, "event_id": eid,
              "event": f"{r['home']} - {r['away']}", "commence": r["commence"],
@@ -416,6 +451,7 @@ def run(password: str, force: bool = False):
             note(state, f"No pude leer cuotas de {sport}: {e}")
             continue
         for eid, r in ref.items():
+            r["prev"] = (state["snapshots"].get(eid) or {}).get("fair")
             state["snapshots"][eid] = {"fair": r["fair"], "ts": iso(t), "commence": r["commence"]}
         for b in all_bets:
             if b["sport"] == sport and b.get("close_fair_odds") is None and b["event_id"] in ref \
@@ -425,17 +461,17 @@ def run(password: str, force: bool = False):
                     b["close_fair_odds"] = round(1 / p, 3)
         if sport not in s["ligas"] or not full:
             continue
-        cands = find_value(ref, s, allowed, METHODS["valor"])
+        cands = find_value(ref, s, allowed, METHODS["valor"], sport)
         in_window = sum(1 for r in ref.values()
                         if 20 <= (pt(r["commence"]) - t).total_seconds() / 60 <= a["horas_vista"] * 60)
         scan_summary.append((sport, len(ref), in_window, len(cands)))
         if s["ficticio"]["activo"]:
             for k, m in METHODS.items():
-                for b in place(state, s, sport, cands if k == "valor" else find_value(ref, s, allowed, m), "f_" + k, m):
+                for b in place(state, s, sport, cands if k == "valor" else find_value(ref, s, allowed, m, sport), "f_" + k, m):
                     new_fict.setdefault(m["nombre"], []).append(b)
         if s["real"]["activo"]:
             rm = METHODS.get(s["real"].get("metodo"), METHODS["valor"])
-            for b in place(state, s, sport, cands if rm is METHODS["valor"] else find_value(ref, s, allowed, rm), "real", rm):
+            for b in place(state, s, sport, cands if rm is METHODS["valor"] else find_value(ref, s, allowed, rm, sport), "real", rm):
                 telegram(s, f"💶 <b>APUESTA REAL</b>\n<b>{b['event']}</b> · {local(b['commence'])}\n"
                             f"Entra en <b>{b['book']}</b> y apuesta a <b>{b['selection']}</b>\n"
                             f"Cuota: <b>{b['odds']:.2f}</b> (no bajes de {b['min_odds']:.2f})\n"

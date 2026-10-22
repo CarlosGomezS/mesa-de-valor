@@ -405,10 +405,11 @@ async function setSecret(name,value,tok){
 async function dispatch(){return gh('/actions/workflows/bot.yml/dispatches',{method:'POST',body:JSON.stringify({ref:'main',inputs:{forzar:'si'}})})}
 
 /* ---------- datos fijos ---------- */
-const LEAGUES=[['soccer_spain_la_liga','LaLiga'],['soccer_epl','Premier League'],['soccer_uefa_champs_league','Champions League'],
- ['soccer_italy_serie_a','Serie A'],['soccer_germany_bundesliga','Bundesliga'],['soccer_france_ligue_one','Ligue 1'],
- ['soccer_spain_segunda_division','Segunda División'],['soccer_uefa_europa_league','Europa League'],['soccer_netherlands_eredivisie','Eredivisie'],
- ['soccer_portugal_primeira_liga','Liga Portugal'],['basketball_euroleague','Euroliga'],['basketball_nba','NBA']];
+const LEAGUES=[['soccer_spain_la_liga','LaLiga'],['soccer_spain_segunda_division','Segunda División'],['soccer_efl_champ','Championship (Inglaterra 2.ª)'],
+ ['soccer_netherlands_eredivisie','Eredivisie'],['soccer_portugal_primeira_liga','Liga Portugal'],['soccer_germany_bundesliga2','Bundesliga 2'],
+ ['soccer_epl','Premier League'],['soccer_italy_serie_a','Serie A'],['soccer_germany_bundesliga','Bundesliga'],['soccer_france_ligue_one','Ligue 1'],
+ ['soccer_uefa_champs_league','Champions League'],['soccer_uefa_europa_league','Europa League'],['basketball_euroleague','Euroliga'],['basketball_nba','NBA']];
+const LEAGUES_V2=['soccer_spain_la_liga','soccer_spain_segunda_division','soccer_efl_champ','soccer_netherlands_eredivisie','soccer_portugal_primeira_liga','soccer_germany_bundesliga2'];
 const BOOKS=[['williamhill','William Hill'],['sport888','888sport'],['betway','Betway'],['betfair_sb_uk','Betfair (casa de apuestas)'],['leovegas','LeoVegas'],
  ['betsson','Betsson'],['codere_it','Codere (cuotas de su web italiana)'],['winamax_fr','Winamax (cuotas de su web francesa)']];
 const PROFILES={
@@ -418,7 +419,7 @@ const PROFILE_TXT={prudente:'Solo apuestas con al menos un 3 % de ventaja, impor
  normal:'Algo más de apuestas (desde 2,5 % de ventaja) e importes un poco mayores. Más rápido, pero con más altibajos.',
  personal:'Has cambiado los ajustes avanzados a mano.'};
 const DEFAULTS={odds_api_key:'',telegram_token:'',telegram_chat_id:'',ficticio:{activo:true,banca_inicial:50,avisar:true},
- real:{activo:false,banca_inicial:50,metodo:'valor'},ligas:['soccer_spain_la_liga','soccer_epl','soccer_uefa_champs_league'],casas:['williamhill','sport888','betway','betfair_sb_uk','leovegas'],resumen_diario:true,perfil:'prudente',
+ real:{activo:false,banca_inicial:50,metodo:'valor'},ligas:LEAGUES_V2.slice(),ligas_version:2,casas:['williamhill','sport888','betway','betfair_sb_uk','leovegas'],resumen_diario:true,perfil:'prudente',
  avanzado:{valor_minimo:0.03,valor_maximo:0.15,fraccion_kelly:0.25,tope:0.04,minima:0.5,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30,horas_vista:30,horas_entre_busquedas:6,metodo:'power'}};
 const merge=(a,b)=>{const o={...a};for(const k in b||{})o[k]=(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k])?merge(a[k],b[k]):b[k];return o};
 
@@ -434,9 +435,13 @@ async function boot(){
 }
 async function login(pw,silent){
   const f=await readFile('docs/data/settings.enc');
-  SETTINGS=merge(DEFAULTS,await dec(f.text,pw));PW=pw;
+  const raw=await dec(f.text,pw);SETTINGS=merge(DEFAULTS,raw);PW=pw;
   const v=ls.get('mv.vault');if(v){try{TOKEN=(await dec(v,pw)).token}catch(e){}}
   screen('scrApp');fillSettings();await loadState();
+  if(raw.ligas_version!==2&&TOKEN){
+    const s2=structuredClone(SETTINGS);s2.ligas=LEAGUES_V2.slice();s2.ligas_version=2;
+    try{await writeFile('docs/data/settings.enc',await enc(s2,PW),'ligas recomendadas');SETTINGS=s2;fillSettings();toast('Ligas actualizadas a las recomendadas')}catch(e){}
+  }
 }
 $('loginBtn').onclick=async()=>{$('loginErr').textContent='';
   try{await login($('loginPw').value);if($('loginRemember').checked)ls.set('mv.pw',PW)}catch(e){$('loginErr').textContent='Clave incorrecta.'}};
@@ -483,11 +488,25 @@ $('suGo').onclick=async()=>{
 /* ---------- métodos ---------- */
 const METHODS={
  valor:{n:'Valor contra Pinnacle',d:'El método principal. Probabilidad real sacada de Pinnacle; apuesta si una casa paga al menos tu valor mínimo (3 %). Importe según Kelly.'},
- estricto:{n:'Valor alto',d:'Solo apuestas con un 5 % de valor o más y cuotas hasta 4,00. Menos apuestas, pero más seguras de que el valor es real.'},
- favoritos:{n:'Favoritos con valor',d:'Solo cuotas hasta 2,20 con un 2 % de valor o más. Acierta más a menudo y tiene menos rachas malas.'},
- plano:{n:'Valor con importe fijo',d:'Las mismas apuestas que el método principal, pero siempre con el 1 % de la banca. Sirve para ver si Kelly ayuda o perjudica.'},
- consenso:{n:'Consenso de casas',d:'Probabilidad real = media de todas las casas sin margen. Apuesta cuando una paga un 5 % más que el consenso (estudio Kaunitz, 2017). Necesita al menos 3 casas.'},
- control:{n:'Control: siempre el favorito',d:'Sin método: apuesta al favorito de cada partido. Sirve de comparación; debería perder poco a poco. Si un método no lo supera, no funciona.'}};
+ estricto:{n:'Valor alto (5 %+)',d:'Solo valor del 5 % o más y cuotas hasta 4,00. Menos apuestas, más seguras de que el valor es real.'},
+ volumen:{n:'Volumen (1,5 %+)',d:'Acepta valores pequeños desde el 1,5 %. Muchas más apuestas; el margen por apuesta es fino.'},
+ favoritos:{n:'Favoritos con valor',d:'Cuotas hasta 2,20 con un 2 % de valor o más. Los estudios muestran que los favoritos son lo que menos pierde; aquí además se exige valor.'},
+ medias:{n:'Cuotas medias (1,6–3)',d:'Solo cuotas entre 1,60 y 3,00: evita favoritos muy claros y sorpresas. Rachas más cortas.'},
+ longshots:{n:'Sorpresas con valor',d:'Cuotas de 4,00 o más con valor del 5 %+. Es donde las casas más cobran, pero también donde a veces se equivocan. Mucha varianza.'},
+ empates:{n:'Solo empates',d:'Solo apuesta al empate cuando tiene valor (2 %+). Los aficionados casi nunca apuestan empates y algunas casas los ajustan peor.'},
+ local:{n:'Solo local',d:'Solo apuestas al equipo de casa con valor.'},
+ visitante:{n:'Solo visitante',d:'Solo apuestas al equipo de fuera con valor.'},
+ cerca:{n:'Cerca del inicio (<6 h)',d:'Solo partidos que empiezan en menos de 6 horas, cuando Pinnacle ya ha recogido alineaciones y noticias y su precio es más fiable.'},
+ anticipado:{n:'Con antelación (>12 h)',d:'Solo partidos a más de 12 horas, con valor del 4 %+. Las casas tardan más en ajustar, pero la referencia es menos precisa.'},
+ steam:{n:'Movimiento de Pinnacle',d:'Apuesta cuando Pinnacle sube la probabilidad de un resultado 2 puntos o más entre búsquedas y una casa aún no ha movido su cuota. Las casas tradicionales tardan de media cerca de una hora en seguir a Pinnacle.'},
+ futbol:{n:'Solo fútbol',d:'El método principal, solo en fútbol.'},
+ baloncesto:{n:'Solo baloncesto',d:'El método principal, solo en baloncesto (si tienes ligas de baloncesto activas).'},
+ francotirador:{n:'Francotirador (1 al día)',d:'Como mucho una apuesta al día: la de más valor (4 %+). Ideal para bancas pequeñas.'},
+ consenso:{n:'Consenso de casas',d:'Probabilidad real = media de todas las casas sin margen. Apuesta cuando una paga un 5 % más (estudio Kaunitz, 2017). Necesita 3 casas o más.'},
+ doble:{n:'Doble confirmación',d:'Solo apuesta si hay valor tanto frente a Pinnacle como frente a la media de las casas. Menos apuestas, más fiables.'},
+ plano:{n:'Valor con importe fijo',d:'Las mismas apuestas que el principal, siempre con el 1 % de la banca. Sirve para ver si Kelly ayuda.'},
+ agresivo:{n:'Valor agresivo (½ Kelly)',d:'Las mismas apuestas que el principal, con el doble de importe. Crece más rápido si funciona y cae más rápido si no.'},
+ control:{n:'Control: siempre el favorito',d:'Sin método: apuesta al favorito de cada partido. Debería perder poco a poco. Si un método no lo supera, no funciona.'}};
 let METHOD=ls.get('mv.method')||'valor';if(!METHODS[METHOD])METHOD='valor';
 $('method').innerHTML=Object.entries(METHODS).map(([k,m])=>`<option value="${k}">${m.n}</option>`).join('');
 $('method').onchange=e=>{METHOD=e.target.value;ls.set('mv.method',METHOD);renderState()};
@@ -575,7 +594,7 @@ function renderState(){
   const L=ledgerOf(ledgerKey());const b0=real?SETTINGS.real.banca_inicial:SETTINGS.ficticio.banca_inicial;const s=stats(L,b0);
   if(!real){const fb=SETTINGS.ficticio.banca_inicial;
     $('comp').innerHTML='<thead><tr><th>Método</th><th>Banca</th><th>Terminadas</th><th>Rentab.</th><th>CLV</th></tr></thead><tbody>'+
-      Object.entries(METHODS).map(([k,m])=>{const x=stats(ledgerOf('f_'+k),fb);
+      Object.entries(METHODS).map(([k,m])=>[k,m,stats(ledgerOf('f_'+k),fb)]).sort((a,b)=>b[2].bank-a[2].bank).map(([k,m,x])=>{
         return `<tr data-m="${k}" class="${k===METHOD?'sel':''}"><td>${esc(m.n)}${SETTINGS.real.metodo===k?' <span class="chip c-r">real</span>':''}</td>
         <td class="${x.pnl>=0?'pos':'neg'}">${eur(x.bank)}</td><td>${x.done.length}</td><td>${x.staked?sPct(x.pnl/x.staked):'—'}</td>
         <td class="${x.clv==null?'':x.clv>=0?'pos':'neg'}">${x.clv==null?'—':sPct(x.clv)}</td></tr>`}).join('')+'</tbody>'}

@@ -153,3 +153,33 @@ class E2E(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Methods(unittest.TestCase):
+    def setUp(self):
+        self.s = run.merge(run.DEFAULT_SETTINGS, {})
+        start = datetime.now(UTC) + timedelta(hours=3)
+        evs = [ev("e1", start, (2.30, 3.30, 3.30), (2.55, 3.10, 3.60))]
+        for b in evs[0]["bookmakers"]:
+            b["key"] = "pinnacle" if b["key"] == "pinnacle" else "williamhill"
+        self.ref = run.reference(evs, "power")
+
+    def pick(self, k, sport="soccer_spain_la_liga"):
+        return [(c[5], c[6]) for c in run.find_value(self.ref, self.s, set(), run.METHODS[k], sport)]
+
+    def test_twenty_methods(self):
+        self.assertEqual(len(run.METHODS), 20)
+
+    def test_filters(self):
+        self.assertEqual(self.pick("valor"), [("Real Betis", 2.55)])
+        self.assertEqual(self.pick("empates"), [("Draw", 3.6)])
+        self.assertEqual(self.pick("visitante"), [])
+        self.assertEqual(self.pick("baloncesto"), [])
+        self.assertEqual(self.pick("anticipado"), [])         # empieza en 3 h
+        self.assertEqual(self.pick("cerca"), [("Real Betis", 2.55)])
+        self.assertEqual(self.pick("steam"), [])              # sin foto anterior
+
+    def test_steam(self):
+        r = next(iter(self.ref.values()))
+        r["prev"] = {k: v - (0.03 if k == "Real Betis" else -0.015) for k, v in r["fair"].items()}
+        self.assertEqual(self.pick("steam"), [("Real Betis", 2.55)])
