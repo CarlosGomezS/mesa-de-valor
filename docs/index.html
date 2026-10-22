@@ -80,6 +80,18 @@ details summary{cursor:pointer;font-weight:600}
 #comp th:first-child,#comp td:first-child{text-align:left;white-space:normal}
 #comp th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 #comp tr.sel td{background:var(--accent-soft)} #comp tbody tr{cursor:pointer}
+details.day{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+details.day>summary{list-style:none;display:flex;gap:10px;align-items:baseline;padding:12px 14px;cursor:pointer}
+details.day>summary::-webkit-details-marker,details.brow>summary::-webkit-details-marker{display:none}
+details.day>summary::before{content:"▸";color:var(--muted);transition:transform .15s}
+details.day[open]>summary::before{transform:rotate(90deg)}
+.dn{font-weight:600;flex:1;text-transform:capitalize}
+details.brow{border-top:1px solid var(--line)}
+details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr auto;gap:8px;align-items:center;padding:9px 14px;cursor:pointer}
+.bt{font:600 13px var(--f-m);color:var(--muted)}
+.bm{display:flex;flex-direction:column;min-width:0}
+.bm b{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bd{padding:0 14px 10px 66px}
 .log{font:12px/1.6 var(--f-m);color:var(--muted);max-height:220px;overflow:auto}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;z-index:20;max-width:90vw}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -198,17 +210,17 @@ details summary{cursor:pointer;font-weight:600}
         </div>
         <p class="small muted" id="verdict"></p>
       </div>
-      <div class="card" id="compBox">
-        <h3>Comparativa de métodos</h3>
+      <details class="card" id="compBox">
+        <summary><b>Comparativa de métodos</b></summary>
         <p class="small muted">Todos empiezan con el mismo dinero ficticio y apuestan a la vez. Pulsa uno para verlo.</p>
         <div style="overflow-x:auto"><table id="comp" style="width:100%;border-collapse:collapse;font-size:13px"></table></div>
-      </div>
+      </details>
       <div id="propBox" hidden style="display:flex;flex-direction:column;gap:10px">
         <h2>Para apostar ahora</h2>
         <div id="props" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:10px">
-        <h2>Apuestas hechas, esperando resultado</h2>
+        <h2>Pendientes de resultado</h2>
         <div id="open" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
       <div class="card">
@@ -533,6 +545,22 @@ function betCard(b,kind){
     <div class="row"><button class="btn real sm" data-done="${b.id}">La he hecho</button><button class="btn ghost sm" data-no="${b.id}">No la hice</button></div>`;
   return html+'</div>';
 }
+function betRow(b){
+  const chip=b.status==='ganada'?`<span class="chip c-ok">${sEur(b.pnl)}</span>`:b.status==='perdida'?`<span class="chip c-bad">${sEur(b.pnl)}</span>`:
+    b.status==='descartada'?'<span class="chip c-n">No hecha</span>':'<span class="chip c-w">Pendiente</span>';
+  const t=new Date(b.commence).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+  const clv=b.close_fair_odds?` · CLV ${sPct(b.odds/b.close_fair_odds-1)}`:'';
+  return `<details class="brow"><summary><span class="bt">${t}</span><span class="bm"><b>${esc(b.event)}</b><span class="small muted">${esc(b.selection)} · ${b.odds.toFixed(2)} · ${eur(b.stake)}</span></span>${chip}</summary>
+    <div class="small muted bd">${esc(b.book)} · valor ${sPct(b.ev)} · cuota justa ${(1/b.fair_p).toFixed(2)}${clv}</div></details>`;
+}
+function byDay(bets,desc,openFirst){
+  if(!bets.length)return '';
+  const sorted=bets.slice().sort((a,b)=>desc?new Date(b.commence)-new Date(a.commence):new Date(a.commence)-new Date(b.commence));
+  const groups=[];for(const b of sorted){const d=new Date(b.commence).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+    const g=groups[groups.length-1];if(g&&g.d===d)g.b.push(b);else groups.push({d,b:[b]})}
+  return groups.map((g,i)=>{const pnl=g.b.reduce((a,b)=>a+(b.pnl||0),0),done=g.b.some(b=>b.pnl!=null);
+    return `<details class="day"${openFirst&&i===0?' open':''}><summary><span class="dn">${esc(g.d)}</span><span class="small muted">${g.b.length} apuesta${g.b.length>1?'s':''}</span>${done?`<span class="v small ${pnl>=0?'pos':'neg'}">${sEur(pnl)}</span>`:''}</summary>${g.b.map(betRow).join('')}</details>`}).join('');
+}
 function renderState(){
   if(!SETTINGS)return;
   const real=MODE==='real';
@@ -558,8 +586,8 @@ function renderState(){
     s.clv>0?`Buena señal: de media consigues mejores cuotas que el cierre (${sPct(s.clv)}). ${s.pnl<0?'Las pérdidas actuales son probablemente mala racha.':''}`:
     'Mala señal: de media no batimos la cuota de cierre. No pases a dinero real así.';
   const props=L.filter(b=>b.status==='propuesta');$('propBox').hidden=!props.length;$('props').innerHTML=props.map(b=>betCard(b,'prop')).join('');
-  const open=L.filter(b=>b.status==='abierta');$('open').innerHTML=open.length?open.map(b=>betCard(b)).join(''):'<p class="muted small">No hay apuestas en juego. El bot busca solo cada pocas horas y te avisa por Telegram.</p>';
-  $('hist').innerHTML=L.slice().reverse().map(b=>betCard(b)).join('')||'<p class="muted small">Aún no hay apuestas.</p>';
+  const open=L.filter(b=>b.status==='abierta');$('open').innerHTML=open.length?byDay(open,false,true):'<p class="muted small">No hay apuestas en juego. El bot busca solo cada pocas horas y te avisa por Telegram.</p>';
+  $('hist').innerHTML=byDay(L.filter(b=>b.status!=='propuesta'),true,true)||'<p class="muted small">Aún no hay apuestas.</p>';
   $('updated').textContent=STATE?.updated?'Última revisión del bot: '+when(STATE.updated)+(STATE.credits?` · créditos de cuotas: ${STATE.credits}`:''):'El bot aún no ha hecho su primera pasada.';
   showScan(false);
   $('log').innerHTML=(STATE?.log||[]).slice().reverse().map(l=>esc(when(l.ts)+' · '+l.text)).join('<br>');
