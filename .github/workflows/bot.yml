@@ -1,0 +1,43 @@
+name: Mesa de Valor
+
+on:
+  schedule:
+    - cron: "41 * * * *"   # cada hora; la búsqueda completa solo cada X horas (Ajustes)
+  workflow_dispatch:
+    inputs:
+      forzar:
+        description: "Buscar apuestas ahora"
+        default: "si"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mesa
+  cancel-in-progress: false
+
+jobs:
+  pasada:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cryptography==43.0.3
+      - name: Ejecutar
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+          FORZAR: ${{ github.event.inputs.forzar }}
+        run: |
+          if [ -z "$APP_PASSWORD" ]; then echo "Aún no hay contraseña: termina la configuración desde la web."; exit 0; fi
+          python bot/run.py
+      - name: Guardar estado
+        run: |
+          git config user.name "mesa-bot"
+          git config user.email "mesa-bot@users.noreply.github.com"
+          git add docs/data/state.enc
+          git diff --cached --quiet && exit 0
+          git commit -m "estado"
+          for i in 1 2 3; do git pull --rebase -X theirs && git push && break; sleep 5; done

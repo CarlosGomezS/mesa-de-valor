@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Mesa de Valor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..800&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tweetnacl/1.0.3/nacl-fast.min.js"></script>
+<style>
+:root{
+  --bg:#EBEFF1;--surface:#F8FAFB;--sunk:#E1E7EA;--ink:#13202A;--muted:#566370;--line:#C9D2D8;
+  --accent:#0A6F6A;--accent-ink:#fff;--accent-soft:#D3EAE7;
+  --real:#9A4A00;--real-soft:#F6E3CF;
+  --good:#1D7A3B;--good-soft:#DAEEDF;--bad:#B0281F;--bad-soft:#F5DDDA;--warn:#8E5B00;--warn-soft:#F4E6C8;
+  --f-d:"Archivo","Arial Narrow",system-ui,sans-serif;--f-b:"IBM Plex Sans",system-ui,sans-serif;--f-m:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:light}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0E161B;--surface:#152128;--sunk:#0B1216;--ink:#E2E9ED;--muted:#91A0AA;--line:#283A45;
+  --accent:#41B9AF;--accent-ink:#05201D;--accent-soft:#163A37;--real:#F0A35E;--real-soft:#3A2614;
+  --good:#5DC37C;--good-soft:#15301F;--bad:#F27B70;--bad-soft:#3A1916;--warn:#E2B24E;--warn-soft:#352812;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-b);padding-bottom:env(safe-area-inset-bottom)}
+.wrap{max-width:760px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-left)) 0 max(16px,env(safe-area-inset-right))}
+header{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-block:12px}
+.brand{font:800 24px/1 var(--f-d);font-stretch:72%;text-transform:uppercase;letter-spacing:.01em}
+.seg{display:inline-flex;background:var(--sunk);border-radius:99px;padding:3px}
+.seg button{border:0;background:none;font:600 13px var(--f-b);padding:6px 12px;border-radius:99px;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.seg button.realb[aria-pressed=true]{color:var(--real)}
+nav{display:flex;gap:2px;margin-bottom:-1px}
+nav button{flex:1;border:0;background:none;font:500 14px var(--f-b);padding:9px 6px;border-bottom:3px solid transparent;color:var(--muted);cursor:pointer}
+nav button[aria-current=true]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+main{padding-block:18px 60px;display:flex;flex-direction:column;gap:16px}
+h1,h2{font:700 22px/1.15 var(--f-d);font-stretch:85%;margin:0;text-wrap:balance}
+h3{font:700 16px/1.2 var(--f-d);font-stretch:90%;margin:0 0 8px}
+p{margin:0}
+.muted{color:var(--muted)} .small{font-size:13px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.hero{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.big{font:700 40px/1 var(--f-d);font-stretch:80%;font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.stats div{background:var(--surface);padding:10px}
+.k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.v{font:600 17px var(--f-m);font-variant-numeric:tabular-nums}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.bet{border:1px solid var(--line);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:6px;background:var(--surface)}
+.bet.prop{border-color:var(--real);background:var(--real-soft)}
+.bet .t{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.bet .ev{font-weight:600}
+.where{font-size:16px}
+.where b{font-weight:600}
+.chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.c-ok{background:var(--good-soft);color:var(--good)} .c-bad{background:var(--bad-soft);color:var(--bad)} .c-n{background:var(--sunk);color:var(--muted)} .c-w{background:var(--warn-soft);color:var(--warn)} .c-r{background:var(--real-soft);color:var(--real)}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--muted)}
+label.chk{flex-direction:row;align-items:center;gap:8px;font-weight:500;color:var(--ink);font-size:14px}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px;width:100%;min-width:0}
+input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:600 15px var(--f-b);border-radius:6px;padding:11px 16px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn.real{background:var(--real);border-color:var(--real);color:#fff}
+.btn.sm{padding:7px 12px;font-size:14px}
+.btn:disabled{opacity:.5;cursor:default}
+.note{border-left:3px solid var(--warn);background:var(--warn-soft);padding:10px 12px;border-radius:0 6px 6px 0;font-size:14px}
+.note.ok{border-color:var(--good);background:var(--good-soft)} .note.bad{border-color:var(--bad);background:var(--bad-soft)}
+.steps{counter-reset:s;display:flex;flex-direction:column;gap:14px}
+.step{counter-increment:s;display:grid;grid-template-columns:30px 1fr;gap:8px}
+.step::before{content:counter(s);font:800 22px/1 var(--f-d);font-stretch:75%;color:var(--accent)}
+.step>div{display:flex;flex-direction:column;gap:8px;min-width:0}
+a{color:var(--accent)}
+code{font:13px var(--f-m);background:var(--sunk);padding:1px 5px;border-radius:4px;word-break:break-all}
+details summary{cursor:pointer;font-weight:600}
+.log{font:12px/1.6 var(--f-m);color:var(--muted);max-height:220px;overflow:auto}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;z-index:20;max-width:90vw}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- ================= ACCESO ================= -->
+<section id="scrLogin" hidden>
+  <div class="wrap" style="padding-block:15vh 40px;max-width:420px">
+    <div class="card">
+      <div class="brand">Mesa de Valor</div>
+      <p class="muted">Introduce tu clave para entrar.</p>
+      <label>Clave<input type="password" id="loginPw" autocomplete="current-password"></label>
+      <label class="chk"><input type="checkbox" id="loginRemember"> Recordarme en este dispositivo</label>
+      <button class="btn" id="loginBtn">Entrar</button>
+      <p class="small neg" id="loginErr"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CONFIGURACIÓN INICIAL ================= -->
+<section id="scrSetup" hidden>
+  <div class="wrap" style="padding-block:24px 60px;display:flex;flex-direction:column;gap:16px">
+    <div class="brand">Mesa de Valor</div>
+    <h1>Configuración inicial</h1>
+    <p class="muted">Se hace una vez. Tarda unos 10 minutos y solo hay que copiar y pegar.</p>
+    <div class="card steps">
+      <div class="step"><div>
+        <h3>Elige tu clave</h3>
+        <p class="small muted">Con ella entras a la web y se cifran todos tus datos. Si la olvidas no se puede recuperar.</p>
+        <div class="grid"><label>Clave<input type="password" id="suPw" autocomplete="new-password"></label><label>Repite la clave<input type="password" id="suPw2" autocomplete="new-password"></label></div>
+      </div></div>
+      <div class="step"><div>
+        <h3>Permiso para que la web guarde cambios</h3>
+        <p class="small">Abre <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">este enlace de GitHub</a> y:</p>
+        <ol class="small" style="margin:0;padding-left:18px">
+          <li>Nombre: <code>mesa</code>. Caducidad: 1 año.</li>
+          <li>Repository access: <b>Only select repositories</b> → elige <code id="repoName"></code>.</li>
+          <li>Permissions → Repository: <b>Contents</b>, <b>Actions</b> y <b>Secrets</b> en <b>Read and write</b>.</li>
+          <li>Pulsa <b>Generate token</b> y pega aquí el texto que empieza por <code>github_pat_</code>.</li>
+        </ol>
+        <label>Token de GitHub<input id="suTok" autocomplete="off" spellcheck="false"></label>
+        <div class="row"><button class="btn sm ghost" id="suTokTest">Comprobar</button><span class="small" id="suTokMsg"></span></div>
+      </div></div>
+      <div class="step"><div>
+        <h3>Cuotas de las casas</h3>
+        <p class="small">Regístrate gratis en <a href="https://the-odds-api.com/#get-access" target="_blank" rel="noopener">the-odds-api.com</a> (plan Starter, 0 €). Te llega una clave por email; pégala aquí.</p>
+        <label>Clave de The Odds API<input id="suOdds" autocomplete="off" spellcheck="false"></label>
+        <div class="row"><button class="btn sm ghost" id="suOddsTest">Comprobar</button><span class="small" id="suOddsMsg"></span></div>
+      </div></div>
+      <div class="step"><div>
+        <h3>Avisos en Telegram</h3>
+        <ol class="small" style="margin:0;padding-left:18px">
+          <li>En Telegram busca <b>@BotFather</b>, escribe <code>/newbot</code> y sigue los pasos. Te dará un token.</li>
+          <li>Pega el token aquí, abre tu bot nuevo en Telegram y escríbele «hola».</li>
+          <li>Pulsa «Detectar mi chat».</li>
+        </ol>
+        <label>Token del bot de Telegram<input id="suTg" autocomplete="off" spellcheck="false"></label>
+        <label>Chat<input id="suChat" placeholder="Se rellena solo" autocomplete="off"></label>
+        <div class="row"><button class="btn sm ghost" id="suChatBtn">Detectar mi chat</button><button class="btn sm ghost" id="suTgTest">Enviar prueba</button><span class="small" id="suTgMsg"></span></div>
+      </div></div>
+      <div class="step"><div>
+        <h3>Listo</h3>
+        <p class="small">Empieza en modo <b>ficticio</b> con 50 € de mentira y las ligas recomendadas. El modo real se activa luego en Ajustes.</p>
+        <button class="btn" id="suGo">Guardar y arrancar</button>
+        <p class="small" id="suMsg"></p>
+      </div></div>
+    </div>
+    <details class="small"><summary>Repositorio detectado</summary>
+      <p style="margin-top:6px">La web guarda los datos cifrados en <code id="repoName2"></code>. Si no es correcto, escríbelo como usuario/repositorio:</p>
+      <input id="repoOverride" placeholder="usuario/mesa-de-valor">
+    </details>
+  </div>
+</section>
+
+<!-- ================= APP ================= -->
+<section id="scrApp" hidden>
+<header>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">Mesa de Valor</div>
+      <div class="seg" role="group" aria-label="Modo">
+        <button id="mFict" aria-pressed="true">Ficticio</button><button id="mReal" class="realb" aria-pressed="false">Real</button>
+      </div>
+    </div>
+    <nav>
+      <button data-v="inicio" aria-current="true">Inicio</button>
+      <button data-v="historial">Historial</button>
+      <button data-v="ajustes">Ajustes</button>
+    </nav>
+  </div>
+</header>
+<main class="wrap">
+
+  <div id="vInicio">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div id="realOff" class="note" hidden>El modo real está apagado. Actívalo en <b>Ajustes</b> cuando el ficticio lleve un tiempo funcionando bien.</div>
+      <div id="stopNote" class="note bad" hidden></div>
+      <div class="card">
+        <div class="hero">
+          <div><div class="k" id="bankLbl">Banca ficticia</div><div class="big" id="bank">—</div></div>
+          <div style="text-align:right"><div class="k">Desde el inicio</div><div class="v" id="delta">—</div></div>
+        </div>
+        <div class="stats">
+          <div><div class="k">Apuestas</div><div class="v" id="sN">0</div></div>
+          <div><div class="k">Rentabilidad</div><div class="v" id="sY">—</div></div>
+          <div><div class="k">Calidad (CLV)</div><div class="v" id="sC">—</div></div>
+        </div>
+        <p class="small muted" id="verdict"></p>
+      </div>
+      <div id="propBox" hidden style="display:flex;flex-direction:column;gap:10px">
+        <h2>Para apostar ahora</h2>
+        <div id="props" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <h2>En juego</h2>
+        <div id="open" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between"><p class="small muted" id="updated">—</p>
+          <div class="row"><button class="btn sm ghost" id="refresh">Actualizar</button><button class="btn sm" id="scanNow">Buscar ahora</button></div></div>
+        <details><summary class="small">Actividad del bot</summary><div class="log" id="log"></div></details>
+      </div>
+    </div>
+  </div>
+
+  <div id="vHistorial" hidden>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <h2>Historial</h2>
+      <div id="hist" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+  </div>
+
+  <div id="vAjustes" hidden>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <h2>Ajustes</h2>
+      <div class="card">
+        <h3>Forma de apostar</h3>
+        <label>Perfil<select id="aProfile">
+          <option value="prudente">Prudente (recomendado)</option>
+          <option value="normal">Normal</option>
+          <option value="personal">Personalizado</option>
+        </select></label>
+        <p class="small muted" id="profileTxt"></p>
+      </div>
+      <div class="card">
+        <h3>🧪 Modo ficticio</h3>
+        <label class="chk"><input type="checkbox" id="aFOn"> Activado</label>
+        <label>Dinero de prueba (€)<input type="number" id="aFBank" step="1"></label>
+        <label class="chk"><input type="checkbox" id="aFNotify"> Avisarme en Telegram de las apuestas ficticias</label>
+        <button class="btn sm ghost" id="aFReset" style="align-self:flex-start">Empezar el ficticio de cero</button>
+      </div>
+      <div class="card" style="border-color:var(--real)">
+        <h3>💶 Modo real</h3>
+        <label class="chk"><input type="checkbox" id="aROn"> Activado: avisarme de apuestas con dinero real</label>
+        <label>Dinero que tienes en las casas (€)<input type="number" id="aRBank" step="1"></label>
+        <p class="small muted">Te llega un aviso con la casa, la apuesta, la cuota mínima y el importe. Al hacerla, pulsa «La he hecho» y el bot la sigue y la cobra solo.</p>
+        <label class="chk" id="aRAckRow"><input type="checkbox" id="aRAck"> Entiendo que puedo perder ese dinero y que el ficticio debería ir bien antes</label>
+      </div>
+      <div class="card">
+        <h3>Ligas</h3>
+        <div class="checks" id="aLeagues"></div>
+        <p class="small muted" id="credits"></p>
+      </div>
+      <div class="card">
+        <h3>Casas donde tienes cuenta</h3>
+        <p class="small muted">Marca solo aquellas en las que puedas apostar en España. Si no marcas ninguna, se miran todas. La cuota en la web española puede variar un poco: el aviso te dice la mínima aceptable.</p>
+        <div class="checks" id="aBooks"></div>
+      </div>
+      <div class="card">
+        <h3>Avisos</h3>
+        <label>Token del bot de Telegram<input id="aTg" autocomplete="off"></label>
+        <label>Chat<input id="aChat" autocomplete="off"></label>
+        <label class="chk"><input type="checkbox" id="aDaily"> Resumen diario a las 21:00</label>
+        <div class="row"><button class="btn sm ghost" id="aTgTest">Enviar prueba</button><span class="small" id="aTgMsg"></span></div>
+      </div>
+      <details class="card" id="advBox"><summary>Ajustes avanzados</summary>
+        <div class="grid" style="margin-top:10px">
+          <label>Valor mínimo (%)<input type="number" step="0.5" data-adv="valor_minimo" data-pct></label>
+          <label>Valor máximo (%)<input type="number" step="1" data-adv="valor_maximo" data-pct></label>
+          <label>Fracción de Kelly<input type="number" step="0.05" data-adv="fraccion_kelly"></label>
+          <label>Tope por apuesta (%)<input type="number" step="0.5" data-adv="tope" data-pct></label>
+          <label>Apuesta mínima (€)<input type="number" step="0.1" data-adv="minima"></label>
+          <label>Pérdida máx. diaria (%)<input type="number" step="1" data-adv="limite_diario" data-pct></label>
+          <label>Pérdida máx. semanal (%)<input type="number" step="1" data-adv="limite_semanal" data-pct></label>
+          <label>Parar si la banca cae (%)<input type="number" step="5" data-adv="parar_si_cae" data-pct></label>
+          <label>Máx. apuestas al día<input type="number" step="1" data-adv="max_dia"></label>
+          <label>Máx. dinero en juego (%)<input type="number" step="5" data-adv="max_exposicion" data-pct></label>
+          <label>Partidos en las próximas (h)<input type="number" step="1" data-adv="horas_vista"></label>
+          <label>Buscar cada (h)<input type="number" step="1" data-adv="horas_entre_busquedas"></label>
+        </div>
+      </details>
+      <div class="card">
+        <h3>Claves</h3>
+        <label>Clave de The Odds API<input id="aOdds" autocomplete="off"></label>
+        <label>Token de GitHub de este dispositivo<input id="aTok" autocomplete="off" type="password"></label>
+      </div>
+      <div class="row"><button class="btn" id="aSave">Guardar ajustes</button><button class="btn ghost" id="logout">Salir</button><span class="small" id="aMsg"></span></div>
+    </div>
+  </div>
+</main>
+</section>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const eur=x=>(+x||0).toLocaleString('es-ES',{style:'currency',currency:'EUR'});
+const sEur=x=>(x>=0?'+':'')+eur(x);
+const pct=(x,d=1)=>((x*100).toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d}))+' %';
+const sPct=(x,d=1)=>(x>=0?'+':'')+pct(x,d);
+const when=s=>new Date(s).toLocaleString('es-ES',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,2600)}
+const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+
+/* ---------- repositorio ---------- */
+function detectRepo(){
+  const o=ls.get('mv.repo');if(o)return o;
+  const h=location.hostname;
+  if(h.endsWith('.github.io')){const owner=h.split('.')[0];const seg=location.pathname.split('/').filter(Boolean)[0];return owner+'/'+(seg||h)}
+  return '';
+}
+let REPO=detectRepo();
+
+/* ---------- cifrado (AES-GCM + PBKDF2, igual que el bot) ---------- */
+const te=new TextEncoder(),td=new TextDecoder();
+const b64=u=>btoa(String.fromCharCode(...u)),unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function kdf(pw,salt){const base=await crypto.subtle.importKey('raw',te.encode(pw),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:210000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+async function enc(obj,pw){const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},await kdf(pw,salt),te.encode(JSON.stringify(obj))));
+  return JSON.stringify({v:1,salt:b64(salt),iv:b64(iv),ct:b64(ct)})}
+async function dec(text,pw){const d=JSON.parse(text);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(d.iv)},await kdf(pw,unb64(d.salt)),unb64(d.ct));return JSON.parse(td.decode(pt))}
+
+/* ---------- BLAKE2b (para sellar el secreto de GitHub) ---------- */
+function blake2b(input,outlen){
+  const M=(1n<<64n)-1n;
+  const IV=[0x6a09e667f3bcc908n,0xbb67ae8584caa73bn,0x3c6ef372fe94f82bn,0xa54ff53a5f1d36f1n,0x510e527fade682d1n,0x9b05688c2b3e6c1fn,0x1f83d9abfb41bd6bn,0x5be0cd19137e2179n];
+  const S=[[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],[14,10,4,8,9,15,13,6,1,12,0,2,11,7,5,3],[11,8,12,0,5,2,15,13,10,14,3,6,7,1,9,4],[7,9,3,1,13,12,11,14,2,6,5,10,4,0,15,8],[9,0,5,7,2,4,10,15,14,1,11,12,6,8,3,13],[2,12,6,10,0,11,8,3,4,13,7,5,15,14,1,9],[12,5,1,15,14,13,4,10,0,7,6,3,9,2,8,11],[13,11,7,14,12,1,3,9,5,0,15,4,8,6,2,10],[6,15,14,9,11,3,0,8,12,2,13,7,1,4,10,5],[10,2,8,4,7,6,1,5,15,11,9,14,3,12,13,0]];
+  const rot=(x,n)=>((x>>n)|(x<<(64n-n)))&M;
+  const h=IV.slice();h[0]^=0x01010000n^BigInt(outlen);
+  const word=(b,i)=>{let r=0n;for(let k=7;k>=0;k--)r=(r<<8n)|BigInt(b[i+k]);return r};
+  const compress=(block,t,last)=>{
+    const m=[];for(let i=0;i<16;i++)m.push(word(block,i*8));
+    const v=h.concat(IV);v[12]^=t;if(last)v[14]^=M;
+    const G=(a,b,c,d,x,y)=>{v[a]=(v[a]+v[b]+x)&M;v[d]=rot(v[d]^v[a],32n);v[c]=(v[c]+v[d])&M;v[b]=rot(v[b]^v[c],24n);
+      v[a]=(v[a]+v[b]+y)&M;v[d]=rot(v[d]^v[a],16n);v[c]=(v[c]+v[d])&M;v[b]=rot(v[b]^v[c],63n)};
+    for(let r=0;r<12;r++){const s=S[r%10];
+      G(0,4,8,12,m[s[0]],m[s[1]]);G(1,5,9,13,m[s[2]],m[s[3]]);G(2,6,10,14,m[s[4]],m[s[5]]);G(3,7,11,15,m[s[6]],m[s[7]]);
+      G(0,5,10,15,m[s[8]],m[s[9]]);G(1,6,11,12,m[s[10]],m[s[11]]);G(2,7,8,13,m[s[12]],m[s[13]]);G(3,4,9,14,m[s[14]],m[s[15]])}
+    for(let i=0;i<8;i++)h[i]^=v[i]^v[i+8]};
+  let off=0;const n=input.length;
+  while(n-off>128){compress(input.subarray(off,off+128),BigInt(off+128),false);off+=128}
+  const last=new Uint8Array(128);last.set(input.subarray(off));compress(last,BigInt(n),true);
+  const out=new Uint8Array(outlen);for(let i=0;i<outlen;i++)out[i]=Number((h[i>>3]>>BigInt(8*(i&7)))&0xffn);return out;
+}
+function sealedBox(msg,pk){ // formato libsodium crypto_box_seal
+  const e=nacl.box.keyPair();const nin=new Uint8Array(64);nin.set(e.publicKey);nin.set(pk,32);
+  const nonce=blake2b(nin,24);const c=nacl.box(msg,nonce,pk,e.secretKey);
+  const out=new Uint8Array(32+c.length);out.set(e.publicKey);out.set(c,32);return out;
+}
+window.__blake2b=blake2b;
+
+/* ---------- GitHub ---------- */
+let PW=null,TOKEN=null,SETTINGS=null,STATE=null;
+async function gh(path,opts={},tok=TOKEN){
+  const h={'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};
+  if(tok)h.Authorization='Bearer '+tok;
+  if(opts.body)h['Content-Type']='application/json';
+  const r=await fetch('https://api.github.com/repos/'+REPO+path,{...opts,headers:h,cache:'no-store'});
+  if(r.status===404)return null;
+  if(!r.ok)throw new Error('GitHub '+r.status+': '+(await r.text()).slice(0,160));
+  return r.status===204?{}:r.json();
+}
+const utf8b64=s=>b64(te.encode(s)),b64utf8=s=>td.decode(unb64(s.replace(/\n/g,'')));
+async function readFile(path){
+  try{const j=await gh('/contents/'+path+'?t='+Date.now());if(j)return{text:b64utf8(j.content),sha:j.sha}}
+  catch(e){ /* sin token o límite: probar la copia publicada */ }
+  try{const r=await fetch(path.replace(/^docs\//,'')+'?t='+Date.now(),{cache:'no-store'});if(r.ok)return{text:await r.text(),sha:null}}catch(e){}
+  return null;
+}
+async function writeFile(path,text,msg){
+  for(let i=0;i<3;i++){
+    const cur=await gh('/contents/'+path+'?t='+Date.now());
+    try{return await gh('/contents/'+path,{method:'PUT',body:JSON.stringify({message:msg,content:utf8b64(text),sha:cur?.sha})})}
+    catch(e){if(!String(e).includes('409')||i===2)throw e}
+  }
+}
+async function setSecret(name,value,tok){
+  const k=await gh('/actions/secrets/public-key',{},tok);
+  const sealed=sealedBox(te.encode(value),unb64(k.key));
+  await gh('/actions/secrets/'+name,{method:'PUT',body:JSON.stringify({encrypted_value:b64(sealed),key_id:k.key_id})},tok);
+}
+async function dispatch(){return gh('/actions/workflows/bot.yml/dispatches',{method:'POST',body:JSON.stringify({ref:'main',inputs:{forzar:'si'}})})}
+
+/* ---------- datos fijos ---------- */
+const LEAGUES=[['soccer_spain_la_liga','LaLiga'],['soccer_epl','Premier League'],['soccer_uefa_champs_league','Champions League'],
+ ['soccer_italy_serie_a','Serie A'],['soccer_germany_bundesliga','Bundesliga'],['soccer_france_ligue_one','Ligue 1'],
+ ['soccer_spain_segunda_division','Segunda División'],['soccer_uefa_europa_league','Europa League'],['soccer_netherlands_eredivisie','Eredivisie'],
+ ['soccer_portugal_primeira_liga','Liga Portugal'],['basketball_euroleague','Euroliga'],['basketball_nba','NBA']];
+const BOOKS=[['williamhill','William Hill'],['sport888','888sport'],['unibet_fr','Unibet'],['leovegas_se','LeoVegas'],
+ ['codere_it','Codere'],['marathonbet','Marathonbet'],['betsson','Betsson'],['betway','Betway'],['onexbet','1xBet (sin licencia en España)']];
+const PROFILES={
+ prudente:{valor_minimo:0.03,fraccion_kelly:0.25,tope:0.04,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30},
+ normal:{valor_minimo:0.025,fraccion_kelly:0.33,tope:0.05,limite_diario:0.15,limite_semanal:0.25,parar_si_cae:0.50,max_dia:10,max_exposicion:0.40}};
+const PROFILE_TXT={prudente:'Solo apuestas con al menos un 3 % de ventaja, importes pequeños (máx. 4 % de la banca) y parada si pierdes un 10 % en un día.',
+ normal:'Algo más de apuestas (desde 2,5 % de ventaja) e importes un poco mayores. Más rápido, pero con más altibajos.',
+ personal:'Has cambiado los ajustes avanzados a mano.'};
+const DEFAULTS={odds_api_key:'',telegram_token:'',telegram_chat_id:'',ficticio:{activo:true,banca_inicial:50,avisar:true},
+ real:{activo:false,banca_inicial:50},ligas:['soccer_spain_la_liga','soccer_epl','soccer_uefa_champs_league'],casas:[],resumen_diario:true,perfil:'prudente',
+ avanzado:{valor_minimo:0.03,valor_maximo:0.15,fraccion_kelly:0.25,tope:0.04,minima:0.5,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30,horas_vista:30,horas_entre_busquedas:6,metodo:'power'}};
+const merge=(a,b)=>{const o={...a};for(const k in b||{})o[k]=(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k])?merge(a[k],b[k]):b[k];return o};
+
+/* ---------- arranque ---------- */
+function screen(id){['scrLogin','scrSetup','scrApp'].forEach(s=>$(s).hidden=s!==id)}
+async function boot(){
+  $('repoName').textContent=$('repoName2').textContent=REPO||'(no detectado)';
+  const f=await readFile('docs/data/settings.enc');
+  if(!f){screen('scrSetup');return}
+  const saved=ls.get('mv.pw');
+  if(saved){try{await login(saved,true);return}catch(e){ls.del('mv.pw')}}
+  screen('scrLogin');$('loginPw').focus();
+}
+async function login(pw,silent){
+  const f=await readFile('docs/data/settings.enc');
+  SETTINGS=merge(DEFAULTS,await dec(f.text,pw));PW=pw;
+  const v=ls.get('mv.vault');if(v){try{TOKEN=(await dec(v,pw)).token}catch(e){}}
+  screen('scrApp');fillSettings();await loadState();
+}
+$('loginBtn').onclick=async()=>{$('loginErr').textContent='';
+  try{await login($('loginPw').value);if($('loginRemember').checked)ls.set('mv.pw',PW)}catch(e){$('loginErr').textContent='Clave incorrecta.'}};
+$('loginPw').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click()});
+$('logout').onclick=()=>{ls.del('mv.pw');PW=null;location.reload()};
+
+/* ---------- configuración inicial ---------- */
+$('repoOverride').onchange=e=>{REPO=e.target.value.trim();ls.set('mv.repo',REPO);$('repoName').textContent=$('repoName2').textContent=REPO};
+$('suTokTest').onclick=async()=>{const t=$('suTok').value.trim();$('suTokMsg').textContent='Comprobando…';
+  try{const r=await gh('',{},t);$('suTokMsg').innerHTML=r?'<span class="pos">Correcto</span>':'<span class="neg">No encuentro el repositorio '+esc(REPO)+'</span>'}
+  catch(e){$('suTokMsg').innerHTML='<span class="neg">El token no vale o le faltan permisos</span>'}};
+async function testOdds(key,out){out.textContent='Comprobando…';
+  try{const r=await fetch('https://api.the-odds-api.com/v4/sports/?apiKey='+encodeURIComponent(key));
+    out.innerHTML=r.ok?`<span class="pos">Correcta · créditos libres: ${esc(r.headers.get('x-requests-remaining')??'?')}</span>`:'<span class="neg">Clave no válida</span>'}
+  catch(e){out.innerHTML='<span class="neg">No se pudo conectar</span>'}}
+$('suOddsTest').onclick=()=>testOdds($('suOdds').value.trim(),$('suOddsMsg'));
+async function tgSend(tok,chat,text){const r=await fetch(`https://api.telegram.org/bot${tok}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chat,text})});return r.ok}
+$('suChatBtn').onclick=async()=>{const tok=$('suTg').value.trim();$('suTgMsg').textContent='Buscando…';
+  try{const r=await (await fetch(`https://api.telegram.org/bot${tok}/getUpdates`)).json();
+    const m=(r.result||[]).map(u=>u.message||u.edited_message).filter(Boolean).pop();
+    if(m){$('suChat').value=m.chat.id;$('suTgMsg').innerHTML='<span class="pos">Chat encontrado</span>'}else $('suTgMsg').innerHTML='<span class="neg">Escribe «hola» a tu bot y vuelve a pulsar</span>'}
+  catch(e){$('suTgMsg').innerHTML='<span class="neg">Token de Telegram no válido</span>'}};
+$('suTgTest').onclick=async()=>{const ok=await tgSend($('suTg').value.trim(),$('suChat').value.trim(),'Mesa de Valor conectada ✅').catch(()=>false);
+  $('suTgMsg').innerHTML=ok?'<span class="pos">Enviado</span>':'<span class="neg">No se pudo enviar</span>'};
+$('suGo').onclick=async()=>{
+  const pw=$('suPw').value,tok=$('suTok').value.trim(),msg=$('suMsg');
+  if(pw.length<8){msg.innerHTML='<span class="neg">La clave debe tener al menos 8 caracteres.</span>';return}
+  if(pw!==$('suPw2').value){msg.innerHTML='<span class="neg">Las claves no coinciden.</span>';return}
+  if(!tok||!$('suOdds').value.trim()){msg.innerHTML='<span class="neg">Faltan el token de GitHub o la clave de cuotas.</span>';return}
+  $('suGo').disabled=true;
+  try{
+    TOKEN=tok;PW=pw;
+    msg.textContent='Guardando tu clave en GitHub…';let manual=false;
+    try{await setSecret('APP_PASSWORD',pw,tok)}catch(e){manual=true}
+    SETTINGS=merge(DEFAULTS,{odds_api_key:$('suOdds').value.trim(),telegram_token:$('suTg').value.trim(),telegram_chat_id:$('suChat').value.trim()});
+    msg.textContent='Guardando ajustes cifrados…';await writeFile('docs/data/settings.enc',await enc(SETTINGS,pw),'ajustes');
+    ls.set('mv.vault',await enc({token:tok},pw));ls.set('mv.pw',pw);
+    msg.textContent='Arrancando la primera búsqueda…';await dispatch().catch(()=>{});
+    if(manual){msg.innerHTML=`Casi listo. Falta un paso a mano: abre <a target="_blank" rel="noopener" href="https://github.com/${esc(REPO)}/settings/secrets/actions/new">este enlace</a>, pon de nombre <code>APP_PASSWORD</code> y de valor tu clave, y guarda. Después recarga esta página.`;return}
+    screen('scrApp');fillSettings();renderState();toast('Listo. La primera búsqueda tarda 1–2 minutos.');setTimeout(loadState,90000);
+  }catch(e){msg.innerHTML='<span class="neg">'+esc(e.message)+'</span>';$('suGo').disabled=false}
+};
+
+/* ---------- estado ---------- */
+let MODE=ls.get('mv.mode')||'ficticio';
+function setMode(m){MODE=m;ls.set('mv.mode',m);$('mFict').setAttribute('aria-pressed',m==='ficticio');$('mReal').setAttribute('aria-pressed',m==='real');renderState()}
+$('mFict').onclick=()=>setMode('ficticio');$('mReal').onclick=()=>setMode('real');
+async function loadState(){
+  const f=await readFile('docs/data/state.enc');
+  if(f){try{STATE=await dec(f.text,PW)}catch(e){toast('No pude descifrar el estado: ¿cambiaste la clave?')}}
+  renderState();
+}
+$('refresh').onclick=()=>loadState().then(()=>toast('Actualizado'));
+$('scanNow').onclick=async()=>{if(!TOKEN){toast('Pon tu token de GitHub en Ajustes');return}
+  try{await dispatch();toast('Buscando. En 1–2 minutos verás el resultado.');setTimeout(loadState,90000)}catch(e){toast(e.message)}};
+
+const settledSt=['ganada','perdida','nula'];
+function stats(bets,b0){
+  const done=bets.filter(b=>settledSt.includes(b.status));
+  const staked=done.reduce((a,b)=>a+b.stake,0),pnl=done.reduce((a,b)=>a+(b.pnl||0),0);
+  const cl=bets.filter(b=>b.close_fair_odds&&b.status!=='descartada'&&b.status!=='propuesta').map(b=>b.odds/b.close_fair_odds-1);
+  return{done,staked,pnl,bank:b0+pnl,clv:cl.length?cl.reduce((a,b)=>a+b,0)/cl.length:null,ncl:cl.length};
+}
+function betCard(b,kind){
+  const res=b.status==='ganada'?'<span class="chip c-ok">Ganada '+sEur(b.pnl)+'</span>':b.status==='perdida'?'<span class="chip c-bad">Perdida '+sEur(b.pnl)+'</span>':
+    b.status==='descartada'?'<span class="chip c-n">No hecha</span>':b.status==='propuesta'?'<span class="chip c-r">Pendiente de hacer</span>':'<span class="chip c-w">En juego</span>';
+  const clv=b.close_fair_odds?` · CLV ${sPct(b.odds/b.close_fair_odds-1)}`:'';
+  let html=`<div class="bet ${kind==='prop'?'prop':''}"><div class="t"><b>${esc(b.event)}</b>${res}</div>
+    <div class="small muted">${when(b.commence)}</div>
+    <div class="where">${kind==='prop'?'Entra en ':''}<b>${esc(b.book)}</b> · ${esc(b.selection)} a <b>${b.odds.toFixed(2)}</b> · <b>${eur(b.stake)}</b></div>
+    <div class="small muted">Valor ${sPct(b.ev)} · cuota justa ${(1/b.fair_p).toFixed(2)}${clv}</div>`;
+  if(kind==='prop')html+=`<div class="small">No apuestes si la cuota baja de <b>${(b.min_odds||0).toFixed(2)}</b>.</div>
+    <div class="grid"><label>Cuota conseguida<input type="number" step="0.01" id="po-${b.id}" value="${b.odds}"></label><label>Importe (€)<input type="number" step="0.1" id="ps-${b.id}" value="${b.stake}"></label></div>
+    <div class="row"><button class="btn real sm" data-done="${b.id}">La he hecho</button><button class="btn ghost sm" data-no="${b.id}">No la hice</button></div>`;
+  return html+'</div>';
+}
+function renderState(){
+  if(!SETTINGS)return;
+  const real=MODE==='real';
+  $('bankLbl').textContent=real?'Banca real':'Banca ficticia';
+  $('realOff').hidden=!(real&&!SETTINGS.real.activo);
+  const L=STATE?.ledgers?.[MODE]?.bets||[];const b0=SETTINGS[MODE].banca_inicial;const s=stats(L,b0);
+  $('bank').textContent=eur(s.bank);$('delta').textContent=sEur(s.pnl);$('delta').className='v '+(s.pnl>=0?'pos':'neg');
+  $('sN').textContent=s.done.length;$('sY').textContent=s.staked?sPct(s.pnl/s.staked):'—';$('sY').className='v '+(s.pnl>=0?'pos':'neg');
+  $('sC').textContent=s.clv==null?'—':sPct(s.clv);$('sC').className='v '+(s.clv==null?'':s.clv>=0?'pos':'neg');
+  $('verdict').textContent=s.ncl<30?`Con ${s.ncl} apuestas medidas aún es pronto para saber si el método funciona. Hacen falta 100 o más.`:
+    s.clv>0?`Buena señal: de media consigues mejores cuotas que el cierre (${sPct(s.clv)}). ${s.pnl<0?'Las pérdidas actuales son probablemente mala racha.':''}`:
+    'Mala señal: de media no batimos la cuota de cierre. No pases a dinero real así.';
+  const props=L.filter(b=>b.status==='propuesta');$('propBox').hidden=!props.length;$('props').innerHTML=props.map(b=>betCard(b,'prop')).join('');
+  const open=L.filter(b=>b.status==='abierta');$('open').innerHTML=open.length?open.map(b=>betCard(b)).join(''):'<p class="muted small">No hay apuestas en juego. El bot busca solo cada pocas horas y te avisa por Telegram.</p>';
+  $('hist').innerHTML=L.slice().reverse().map(b=>betCard(b)).join('')||'<p class="muted small">Aún no hay apuestas.</p>';
+  $('updated').textContent=STATE?.updated?'Última revisión del bot: '+when(STATE.updated)+(STATE.credits?` · créditos de cuotas: ${STATE.credits}`:''):'El bot aún no ha hecho su primera pasada.';
+  $('log').innerHTML=(STATE?.log||[]).slice().reverse().map(l=>esc(when(l.ts)+' · '+l.text)).join('<br>');
+  const a=SETTINGS.avanzado,lastStop=(STATE?.log||[]).slice().reverse().find(l=>l.text.startsWith(MODE+': sin apuestas'));
+  $('stopNote').hidden=!lastStop||(Date.now()-new Date(lastStop.ts))>864e5;if(lastStop)$('stopNote').textContent='Pausa automática: '+lastStop.text.split('(')[1]?.replace(')','');
+}
+document.addEventListener('click',async e=>{
+  const d=e.target.dataset.done,n=e.target.dataset.no;if(!d&&!n)return;
+  if(!TOKEN){toast('Pon tu token de GitHub en Ajustes');return}
+  e.target.disabled=true;
+  const act={id:crypto.randomUUID(),bet:d||n,type:d?'hecha':'no',ts:new Date().toISOString()};
+  if(d){act.odds=+$('po-'+d).value;act.stake=+$('ps-'+d).value}
+  try{
+    const f=await readFile('docs/data/inbox.enc');const inbox=f?await dec(f.text,PW):[];inbox.push(act);
+    await writeFile('docs/data/inbox.enc',await enc(inbox.slice(-300),PW),'confirmación');
+    const b=STATE.ledgers.real.bets.find(x=>x.id===act.bet);if(b){b.status=d?'abierta':'descartada';if(d){b.odds=act.odds;b.stake=act.stake}}
+    renderState();toast(d?'Anotada. El bot la seguirá y la cobrará solo.':'Descartada.');
+  }catch(err){toast('No se pudo guardar: '+err.message);e.target.disabled=false}
+});
+
+/* ---------- ajustes ---------- */
+function fillSettings(){
+  const s=SETTINGS;
+  $('aProfile').value=s.perfil||'prudente';$('profileTxt').textContent=PROFILE_TXT[$('aProfile').value];
+  $('aFOn').checked=s.ficticio.activo;$('aFBank').value=s.ficticio.banca_inicial;$('aFNotify').checked=s.ficticio.avisar;
+  $('aROn').checked=s.real.activo;$('aRBank').value=s.real.banca_inicial;$('aRAck').checked=s.real.activo;
+  $('aLeagues').innerHTML=LEAGUES.map(([k,n])=>`<label class="chk"><input type="checkbox" value="${k}" ${s.ligas.includes(k)?'checked':''}> ${n}</label>`).join('');
+  $('aBooks').innerHTML=BOOKS.map(([k,n])=>`<label class="chk"><input type="checkbox" value="${k}" ${s.casas.includes(k)?'checked':''}> ${n}</label>`).join('');
+  $('aTg').value=s.telegram_token;$('aChat').value=s.telegram_chat_id;$('aDaily').checked=s.resumen_diario;
+  $('aOdds').value=s.odds_api_key;$('aTok').value=TOKEN||'';
+  document.querySelectorAll('[data-adv]').forEach(i=>{const v=s.avanzado[i.dataset.adv];i.value=i.hasAttribute('data-pct')?+(v*100).toFixed(2):v});
+  credits();
+}
+function credits(){const n=[...$('aLeagues').querySelectorAll('input:checked')].length;const h=+document.querySelector('[data-adv=horas_entre_busquedas]').value||6;
+  const est=Math.round(n*24/h*30+60);$('credits').innerHTML=`Uso estimado: ~${est} consultas al mes de las 500 gratis.`+(est>480?' <span class="neg">Te pasarías: quita ligas o busca con menos frecuencia.</span>':'')}
+$('aLeagues').addEventListener('change',credits);
+document.querySelector('[data-adv=horas_entre_busquedas]').addEventListener('input',credits);
+$('aProfile').onchange=e=>{const p=PROFILES[e.target.value];$('profileTxt').textContent=PROFILE_TXT[e.target.value];
+  if(p)document.querySelectorAll('[data-adv]').forEach(i=>{if(i.dataset.adv in p){const v=p[i.dataset.adv];i.value=i.hasAttribute('data-pct')?+(v*100).toFixed(2):v}})};
+document.querySelectorAll('[data-adv]').forEach(i=>i.addEventListener('input',()=>{if(i.dataset.adv!=='horas_entre_busquedas'){$('aProfile').value='personal';$('profileTxt').textContent=PROFILE_TXT.personal}}));
+$('aTgTest').onclick=async()=>{const ok=await tgSend($('aTg').value.trim(),$('aChat').value.trim(),'Prueba de Mesa de Valor ✅').catch(()=>false);$('aTgMsg').innerHTML=ok?'<span class="pos">Enviado</span>':'<span class="neg">No se pudo enviar</span>'};
+let resetFict=false;
+$('aFReset').onclick=e=>{if(!resetFict){resetFict=true;e.target.textContent='Pulsa otra vez para confirmar';setTimeout(()=>{resetFict=false;e.target.textContent='Empezar el ficticio de cero'},4000);return}
+  resetFict='do';e.target.textContent='Se reiniciará al guardar'};
+$('aSave').onclick=async()=>{
+  const s=structuredClone(SETTINGS),msg=$('aMsg');
+  if($('aROn').checked&&!$('aRAck').checked){msg.innerHTML='<span class="neg">Para activar el modo real marca la casilla de confirmación.</span>';return}
+  s.perfil=$('aProfile').value;
+  s.ficticio={activo:$('aFOn').checked,banca_inicial:+$('aFBank').value||50,avisar:$('aFNotify').checked};
+  s.real={activo:$('aROn').checked,banca_inicial:+$('aRBank').value||0};
+  s.ligas=[...$('aLeagues').querySelectorAll('input:checked')].map(i=>i.value);
+  s.casas=[...$('aBooks').querySelectorAll('input:checked')].map(i=>i.value);
+  s.telegram_token=$('aTg').value.trim();s.telegram_chat_id=$('aChat').value.trim();s.resumen_diario=$('aDaily').checked;
+  s.odds_api_key=$('aOdds').value.trim();
+  document.querySelectorAll('[data-adv]').forEach(i=>{const v=+i.value;s.avanzado[i.dataset.adv]=i.hasAttribute('data-pct')?v/100:v});
+  if(!s.ligas.length){msg.innerHTML='<span class="neg">Elige al menos una liga.</span>';return}
+  const tok=$('aTok').value.trim();if(tok&&tok!==TOKEN){TOKEN=tok;ls.set('mv.vault',await enc({token:tok},PW))}
+  if(!TOKEN){msg.innerHTML='<span class="neg">Falta el token de GitHub de este dispositivo.</span>';return}
+  if(resetFict==='do')s.reset_ficticio=Date.now();
+  msg.textContent='Guardando…';
+  try{await writeFile('docs/data/settings.enc',await enc(s,PW),'ajustes');SETTINGS=s;resetFict=false;msg.innerHTML='<span class="pos">Guardado</span>';renderState()}
+  catch(e){msg.innerHTML='<span class="neg">'+esc(e.message)+'</span>'}
+};
+
+/* ---------- navegación ---------- */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-current',x===b));
+  ['inicio','historial','ajustes'].forEach(v=>$('v'+v[0].toUpperCase()+v.slice(1)).hidden=v!==b.dataset.v);window.scrollTo(0,0)});
+setMode(MODE);
+boot().catch(e=>{screen('scrLogin');$('loginErr').textContent='No pude cargar los datos: '+e.message});
+setInterval(()=>{if(PW&&!document.hidden)loadState()},5*60*1000);
+})();
+</script>
+</body>
+</html>
