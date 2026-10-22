@@ -193,7 +193,7 @@ details summary{cursor:pointer;font-weight:600}
         <div id="props" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:10px">
-        <h2>En juego</h2>
+        <h2>Apuestas hechas, esperando resultado</h2>
         <div id="open" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
       <div class="card">
@@ -486,7 +486,7 @@ function stats(bets,b0){
 }
 function betCard(b,kind){
   const res=b.status==='ganada'?'<span class="chip c-ok">Ganada '+sEur(b.pnl)+'</span>':b.status==='perdida'?'<span class="chip c-bad">Perdida '+sEur(b.pnl)+'</span>':
-    b.status==='descartada'?'<span class="chip c-n">No hecha</span>':b.status==='propuesta'?'<span class="chip c-r">Pendiente de hacer</span>':'<span class="chip c-w">En juego</span>';
+    b.status==='descartada'?'<span class="chip c-n">No hecha</span>':b.status==='propuesta'?'<span class="chip c-r">Pendiente de hacer</span>':'<span class="chip c-w">Esperando resultado</span>';
   const clv=b.close_fair_odds?` · CLV ${sPct(b.odds/b.close_fair_odds-1)}`:'';
   let html=`<div class="bet ${kind==='prop'?'prop':''}"><div class="t"><b>${esc(b.event)}</b>${res}</div>
     <div class="small muted">${when(b.commence)}</div>
