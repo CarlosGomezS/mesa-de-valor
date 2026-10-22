@@ -192,7 +192,7 @@ details summary{cursor:pointer;font-weight:600}
           <div style="text-align:right"><div class="k">Desde el inicio</div><div class="v" id="delta">—</div></div>
         </div>
         <div class="stats">
-          <div><div class="k">Apuestas</div><div class="v" id="sN">0</div></div>
+          <div><div class="k">Terminadas</div><div class="v" id="sN">0</div><div class="small muted" id="sP"></div></div>
           <div><div class="k">Rentabilidad</div><div class="v" id="sY">—</div></div>
           <div><div class="k">Calidad (CLV)</div><div class="v" id="sC">—</div></div>
         </div>
@@ -546,13 +546,13 @@ function renderState(){
   $('realMethod').hidden=!real;$('realMethod').innerHTML=`Método en uso: <b>${esc(METHODS[rm].n)}</b>. Para cambiarlo, elige otro en el modo Ficticio.`;
   const L=ledgerOf(ledgerKey());const b0=real?SETTINGS.real.banca_inicial:SETTINGS.ficticio.banca_inicial;const s=stats(L,b0);
   if(!real){const fb=SETTINGS.ficticio.banca_inicial;
-    $('comp').innerHTML='<thead><tr><th>Método</th><th>Banca</th><th>Apuestas</th><th>Rentab.</th><th>CLV</th></tr></thead><tbody>'+
+    $('comp').innerHTML='<thead><tr><th>Método</th><th>Banca</th><th>Terminadas</th><th>Rentab.</th><th>CLV</th></tr></thead><tbody>'+
       Object.entries(METHODS).map(([k,m])=>{const x=stats(ledgerOf('f_'+k),fb);
         return `<tr data-m="${k}" class="${k===METHOD?'sel':''}"><td>${esc(m.n)}${SETTINGS.real.metodo===k?' <span class="chip c-r">real</span>':''}</td>
         <td class="${x.pnl>=0?'pos':'neg'}">${eur(x.bank)}</td><td>${x.done.length}</td><td>${x.staked?sPct(x.pnl/x.staked):'—'}</td>
         <td class="${x.clv==null?'':x.clv>=0?'pos':'neg'}">${x.clv==null?'—':sPct(x.clv)}</td></tr>`}).join('')+'</tbody>'}
   $('bank').textContent=eur(s.bank);$('delta').textContent=sEur(s.pnl);$('delta').className='v '+(s.pnl>=0?'pos':'neg');
-  $('sN').textContent=s.done.length;$('sY').textContent=s.staked?sPct(s.pnl/s.staked):'—';$('sY').className='v '+(s.pnl>=0?'pos':'neg');
+  $('sN').textContent=s.done.length;const np=L.filter(b=>b.status==='abierta').length;$('sP').textContent=np?np+' esperando':'';$('sY').textContent=s.staked?sPct(s.pnl/s.staked):'—';$('sY').className='v '+(s.pnl>=0?'pos':'neg');
   $('sC').textContent=s.clv==null?'—':sPct(s.clv);$('sC').className='v '+(s.clv==null?'':s.clv>=0?'pos':'neg');
   $('verdict').textContent=s.ncl<30?`Con ${s.ncl} apuestas medidas aún es pronto para saber si el método funciona. Hacen falta 100 o más.`:
     s.clv>0?`Buena señal: de media consigues mejores cuotas que el cierre (${sPct(s.clv)}). ${s.pnl<0?'Las pérdidas actuales son probablemente mala racha.':''}`:
