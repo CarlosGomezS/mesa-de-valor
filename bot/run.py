@@ -37,7 +37,7 @@ DEFAULT_SETTINGS = {
     "ficticio": {"activo": True, "banca_inicial": 50.0, "avisar": True},
     "real": {"activo": False, "banca_inicial": 50.0},
     "ligas": ["soccer_spain_la_liga", "soccer_epl", "soccer_uefa_champs_league"],
-    "casas": ["williamhill", "sport888", "leovegas_se"],
+    "casas": ["williamhill", "sport888", "betway", "betfair_sb_uk", "leovegas"],
     "resumen_diario": True,
     "avanzado": {"valor_minimo": 0.03, "valor_maximo": 0.15, "fraccion_kelly": 0.25, "tope": 0.04,
                  "minima": 0.5, "limite_diario": 0.10, "limite_semanal": 0.20, "parar_si_cae": 0.40,
