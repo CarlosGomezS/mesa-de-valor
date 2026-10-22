@@ -244,7 +244,7 @@ details summary{cursor:pointer;font-weight:600}
       </div>
       <div class="card">
         <h3>Casas donde tienes cuenta</h3>
-        <p class="small muted">Marca solo aquellas en las que puedas apostar en España. Si no marcas ninguna, se miran todas. La cuota en la web española puede variar un poco: el aviso te dice la mínima aceptable.</p>
+        <p class="small muted">Todas tienen licencia en España. Marca solo aquellas en las que tengas cuenta (o vayas a abrirla). La cuota en la web española puede variar un poco: el aviso te dice la mínima aceptable.</p>
         <div class="checks" id="aBooks"></div>
       </div>
       <div class="card">
@@ -381,8 +381,8 @@ const LEAGUES=[['soccer_spain_la_liga','LaLiga'],['soccer_epl','Premier League']
  ['soccer_italy_serie_a','Serie A'],['soccer_germany_bundesliga','Bundesliga'],['soccer_france_ligue_one','Ligue 1'],
  ['soccer_spain_segunda_division','Segunda División'],['soccer_uefa_europa_league','Europa League'],['soccer_netherlands_eredivisie','Eredivisie'],
  ['soccer_portugal_primeira_liga','Liga Portugal'],['basketball_euroleague','Euroliga'],['basketball_nba','NBA']];
-const BOOKS=[['williamhill','William Hill'],['sport888','888sport'],['unibet_fr','Unibet'],['leovegas_se','LeoVegas'],
- ['codere_it','Codere'],['marathonbet','Marathonbet'],['betsson','Betsson'],['betway','Betway'],['onexbet','1xBet (sin licencia en España)']];
+const BOOKS=[['williamhill','William Hill (recomendada)'],['sport888','888sport (recomendada)'],['leovegas_se','LeoVegas (recomendada)'],
+ ['betsson','Betsson'],['codere_it','Codere (cuotas de su web italiana)'],['winamax_fr','Winamax (cuotas de su web francesa)']];
 const PROFILES={
  prudente:{valor_minimo:0.03,fraccion_kelly:0.25,tope:0.04,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30},
  normal:{valor_minimo:0.025,fraccion_kelly:0.33,tope:0.05,limite_diario:0.15,limite_semanal:0.25,parar_si_cae:0.50,max_dia:10,max_exposicion:0.40}};
@@ -390,7 +390,7 @@ const PROFILE_TXT={prudente:'Solo apuestas con al menos un 3 % de ventaja, impor
  normal:'Algo más de apuestas (desde 2,5 % de ventaja) e importes un poco mayores. Más rápido, pero con más altibajos.',
  personal:'Has cambiado los ajustes avanzados a mano.'};
 const DEFAULTS={odds_api_key:'',telegram_token:'',telegram_chat_id:'',ficticio:{activo:true,banca_inicial:50,avisar:true},
- real:{activo:false,banca_inicial:50},ligas:['soccer_spain_la_liga','soccer_epl','soccer_uefa_champs_league'],casas:[],resumen_diario:true,perfil:'prudente',
+ real:{activo:false,banca_inicial:50},ligas:['soccer_spain_la_liga','soccer_epl','soccer_uefa_champs_league'],casas:['williamhill','sport888','leovegas_se'],resumen_diario:true,perfil:'prudente',
  avanzado:{valor_minimo:0.03,valor_maximo:0.15,fraccion_kelly:0.25,tope:0.04,minima:0.5,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30,horas_vista:30,horas_entre_busquedas:6,metodo:'power'}};
 const merge=(a,b)=>{const o={...a};for(const k in b||{})o[k]=(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k])?merge(a[k],b[k]):b[k];return o};
 

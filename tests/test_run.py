@@ -47,7 +47,7 @@ class E2E(unittest.TestCase):
         self.start = datetime.now(UTC) + timedelta(hours=5)
         FakeOdds.events = [ev("e1", self.start, (2.30, 3.30, 3.30), (2.55, 3.10, 3.20))]
         settings = {"odds_api_key": "k", "real": {"activo": True, "banca_inicial": 50.0},
-                    "ligas": ["soccer_spain_la_liga", "soccer_epl"]}
+                    "ligas": ["soccer_spain_la_liga", "soccer_epl"], "casas": ["unibet_fr"]}
         (run.DATA / "settings.enc").write_text(run.encrypt(settings, PW))
 
     def tearDown(self):
