@@ -36,6 +36,24 @@ class FakeOdds:
         return FakeOdds.scores_data
 
 
+class Migration(unittest.TestCase):
+    def test_old_single_ledger_is_kept(self):
+        tmp = tempfile.TemporaryDirectory()
+        run.DATA = Path(tmp.name)
+        run.Odds = FakeOdds
+        run.telegram = lambda s, t: None
+        FakeOdds.events = []
+        (run.DATA / "settings.enc").write_text(run.encrypt({"odds_api_key": "k"}, PW))
+        old = {"version": 1, "ledgers": {"ficticio": {"bets": [{"id": "x", "status": "ganada", "pnl": 3.0, "sport": "soccer_epl", "event_id": "z", "stake": 1, "commence": "2026-10-01T10:00:00Z", "created": "2026-10-01T09:00:00Z", "settled": "2026-10-01T13:00:00Z"}]},
+                                         "real": {"bets": []}}, "snapshots": {}, "last_scan": None, "applied": [], "log": []}
+        (run.DATA / "state.enc").write_text(run.encrypt(old, PW))
+        run.run(PW)
+        st = run.decrypt((run.DATA / "state.enc").read_text(), PW)
+        self.assertEqual(st["ledgers"]["f_valor"]["bets"][0]["id"], "x")
+        self.assertIn("f_control", st["ledgers"])
+        tmp.cleanup()
+
+
 class E2E(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -59,19 +77,25 @@ class E2E(unittest.TestCase):
     def test_full_flow(self):
         run.run(PW)
         st = self.state()
-        f, r = st["ledgers"]["ficticio"]["bets"], st["ledgers"]["real"]["bets"]
+        f, r = st["ledgers"]["f_valor"]["bets"], st["ledgers"]["real"]["bets"]
         self.assertEqual(len(f), 1)
         self.assertEqual(f[0]["status"], "abierta")
         self.assertEqual((f[0]["selection"], f[0]["book"]), ("Real Betis", "Unibet"))
         self.assertEqual(r[0]["status"], "propuesta")
         self.assertTrue(any("APUESTA REAL" in m for m in self.sent))
-        self.assertTrue(any("FICTICIO" in m for m in self.sent))
+        self.assertTrue(any("ficticias" in m for m in self.sent))
+        L = st["ledgers"]
+        self.assertEqual(len(L["f_estricto"]["bets"]), 1)      # +6,6 % y cuota 2,55: entra
+        self.assertEqual(len(L["f_favoritos"]["bets"]), 0)     # cuota > 2,2: fuera
+        self.assertEqual(L["f_control"]["bets"][0]["selection"], "Real Betis")
+        self.assertEqual(L["f_plano"]["bets"][0]["stake"], 0.5)   # 1 % de 50 € < mínimo 0,5 -> 0,5
+        self.assertEqual(len(L["f_consenso"]["bets"]), 0)      # solo 2 casas: sin consenso
 
         # segunda pasada inmediata: corta, sin repetir ni gastar consultas
         FakeOdds.calls = []
         run.run(PW)
         self.assertEqual(FakeOdds.calls, [])
-        self.assertEqual(len(self.state()["ledgers"]["ficticio"]["bets"]), 1)
+        self.assertEqual(len(self.state()["ledgers"]["f_valor"]["bets"]), 1)
 
         # confirmo desde la web la apuesta real a 2.50 con 1 €
         bid = r[0]["id"]
@@ -104,7 +128,7 @@ class E2E(unittest.TestCase):
         rb = st["ledgers"]["real"]["bets"][0]
         self.assertEqual(rb["status"], "ganada")
         self.assertAlmostEqual(rb["pnl"], 1.5)
-        self.assertEqual(st["ledgers"]["ficticio"]["bets"][0]["status"], "ganada")
+        self.assertEqual(st["ledgers"]["f_valor"]["bets"][0]["status"], "ganada")
 
     def test_unconfirmed_proposal_expires(self):
         run.run(PW)
@@ -121,7 +145,7 @@ class E2E(unittest.TestCase):
         (run.DATA / "settings.enc").write_text(run.encrypt(s, PW))
         FakeOdds.events = []
         run.run(PW, force=True)
-        self.assertEqual(self.state()["ledgers"]["ficticio"]["bets"], [])
+        self.assertEqual(self.state()["ledgers"]["f_valor"]["bets"], [])
 
 
 if __name__ == "__main__":

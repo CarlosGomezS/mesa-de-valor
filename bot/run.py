@@ -35,7 +35,7 @@ ITER = 210_000
 DEFAULT_SETTINGS = {
     "odds_api_key": "", "telegram_token": "", "telegram_chat_id": "",
     "ficticio": {"activo": True, "banca_inicial": 50.0, "avisar": True},
-    "real": {"activo": False, "banca_inicial": 50.0},
+    "real": {"activo": False, "banca_inicial": 50.0, "metodo": "valor"},
     "ligas": ["soccer_spain_la_liga", "soccer_epl", "soccer_uefa_champs_league"],
     "casas": ["williamhill", "sport888", "betway", "betfair_sb_uk", "leovegas"],
     "resumen_diario": True,
@@ -44,6 +44,19 @@ DEFAULT_SETTINGS = {
                  "max_dia": 6, "max_exposicion": 0.30, "horas_vista": 30, "horas_entre_busquedas": 6,
                  "metodo": "power"},
 }
+
+
+# ============================ métodos ============================
+# Cada método tiene su propia cartera ficticia con el mismo dinero inicial.
+METHODS = {
+    "valor":     {"nombre": "Valor contra Pinnacle", "ref": "pinnacle", "min_ev": None, "max_odds": None, "stake": "kelly"},
+    "estricto":  {"nombre": "Valor alto", "ref": "pinnacle", "min_ev": 0.05, "max_odds": 4.0, "stake": "kelly"},
+    "favoritos": {"nombre": "Favoritos con valor", "ref": "pinnacle", "min_ev": 0.02, "max_odds": 2.2, "stake": "kelly"},
+    "plano":     {"nombre": "Valor con importe fijo", "ref": "pinnacle", "min_ev": None, "max_odds": None, "stake": "flat"},
+    "consenso":  {"nombre": "Consenso de casas", "ref": "consensus", "min_ev": 0.05, "max_odds": None, "stake": "flat"},
+    "control":   {"nombre": "Control: siempre el favorito", "ref": "control", "min_ev": None, "max_odds": None, "stake": "flat"},
+}
+FLAT_PCT = 0.01
 
 
 # ============================ cifrado (compatible con la web) ============================
@@ -158,20 +171,33 @@ def reference(events: list[dict], method: str) -> dict:
             continue
         names = list(pin["prices"])
         fair = st.devig([pin["prices"][n] for n in names], method)
+        # consenso: media de las probabilidades sin margen de todas las casas con el mercado completo
+        cons = [0.0] * len(names)
+        nb = 0
+        for b in books.values():
+            if all(n in b["prices"] and b["prices"][n] > 1 for n in names):
+                for i, p in enumerate(st.devig([b["prices"][n] for n in names], "mult")):
+                    cons[i] += p
+                nb += 1
         out[ev["id"]] = {"home": ev["home_team"], "away": ev["away_team"], "commence": ev["commence_time"],
-                         "fair": dict(zip(names, fair)), "books": books}
+                         "fair": dict(zip(names, fair)), "books": books,
+                         "consensus": dict(zip(names, [c / nb for c in cons])) if nb >= 3 else None}
     return out
 
 
 # ============================ cuentas ============================
 
+def bank0(s: dict, name: str) -> float:
+    return s["real"]["banca_inicial"] if name == "real" else s["ficticio"]["banca_inicial"]
+
+
 def ledger_bank(state: dict, s: dict, name: str) -> float:
     bets = state["ledgers"][name]["bets"]
-    return s[name]["banca_inicial"] + sum(b.get("pnl") or 0 for b in bets if b["status"] in ("ganada", "perdida", "nula"))
+    return bank0(s, name) + sum(b.get("pnl") or 0 for b in bets if b["status"] in ("ganada", "perdida", "nula"))
 
 
 def risk_block(state: dict, s: dict, name: str, bank: float) -> str | None:
-    a, b0 = s["avanzado"], s[name]["banca_inicial"]
+    a, b0 = s["avanzado"], bank0(s, name)
     bets = state["ledgers"][name]["bets"]
     t = now()
     closed = [b for b in bets if b["status"] in ("ganada", "perdida") and b.get("settled")]
@@ -192,32 +218,45 @@ def exposure(state, name) -> float:
     return sum(b["stake"] for b in state["ledgers"][name]["bets"] if b["status"] in ("abierta", "propuesta"))
 
 
-def find_value(ref: dict, s: dict, allowed: set) -> list[tuple]:
+def find_value(ref: dict, s: dict, allowed: set, m: dict | None = None) -> list[tuple]:
     a = s["avanzado"]
+    m = m or METHODS["valor"]
+    min_ev = m["min_ev"] if m["min_ev"] is not None else a["valor_minimo"]
     found = []
     for eid, r in ref.items():
         mins = (pt(r["commence"]) - now()).total_seconds() / 60
         if mins < 20 or mins > a["horas_vista"] * 60:
             continue
+        probs = r["consensus"] if m["ref"] == "consensus" else r["fair"]
+        if not probs:
+            continue
+        fav = max((n for n in r["fair"] if n != "Draw"), key=lambda n: r["fair"][n])
         best = None
         for key, b in r["books"].items():
             if key == "pinnacle" or key.startswith("betfair_ex") or key == "matchbook" or (allowed and key not in allowed):
                 continue
             for name, price in b["prices"].items():
-                p = r["fair"].get(name)
+                p = probs.get(name)
                 if not p:
                     continue
+                if m["ref"] == "control":
+                    if name == fav and (not best or price > best[4]):
+                        best = (st.ev_back(r["fair"][name], price), key, b["title"], name, price, r["fair"][name])
+                    continue
+                if m["max_odds"] and price > m["max_odds"]:
+                    continue
                 ev = st.ev_back(p, price)
-                if a["valor_minimo"] <= ev <= a["valor_maximo"] and (not best or ev > best[0]):
+                if min_ev <= ev <= a["valor_maximo"] and (not best or ev > best[0]):
                     best = (ev, key, b["title"], name, price, p)
         if best:
             found.append((eid, r) + best)
     return sorted(found, key=lambda x: -x[2])
 
 
-def place(state, s, sport, cands, name: str) -> list[dict]:
+def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict]:
     """Ficticio: apuesta directamente. Real: crea una propuesta que tú confirmas."""
     a = s["avanzado"]
+    m = m or METHODS["valor"]
     rules = st.StakeRules(a["fraccion_kelly"], a["tope"], a["minima"], True)
     bets = state["ledgers"][name]["bets"]
     new = []
@@ -229,7 +268,10 @@ def place(state, s, sport, cands, name: str) -> list[dict]:
     for eid, r, ev, key, title, outcome, price, p in cands:
         if any(b["event_id"] == eid and b["status"] != "descartada" for b in bets):
             continue
-        stake = st.size_stake(bank, st.kelly_back(p, price), rules)
+        if m["stake"] == "flat":
+            stake = round(max(a["minima"], bank * FLAT_PCT), 2) if bank >= a["minima"] else 0
+        else:
+            stake = st.size_stake(bank, st.kelly_back(p, price), rules)
         if stake <= 0 or exposure(state, name) + stake > a["max_exposicion"] * bank:
             continue
         if risk_block(state, s, name, bank):
@@ -239,7 +281,8 @@ def place(state, s, sport, cands, name: str) -> list[dict]:
              "selection": "Empate" if outcome == "Draw" else outcome, "outcome_key": outcome,
              "book": title, "book_key": key, "odds": price, "min_odds": round((1 + a["valor_minimo"]) / p, 2),
              "stake": stake, "fair_p": round(p, 4), "ev": round(ev, 4), "close_fair_odds": None,
-             "status": "abierta" if name == "ficticio" else "propuesta", "pnl": None, "settled": None}
+             "status": "propuesta" if name == "real" else "abierta", "pnl": None, "settled": None,
+             "method": next((k for k, v in METHODS.items() if v is m), "valor")}
         bets.append(b)
         new.append(b)
     return new
@@ -283,10 +326,16 @@ def note(state, text):
 def run(password: str, force: bool = False):
     s = merge(DEFAULT_SETTINGS, read_enc("settings.enc", password, {}))
     state = read_enc("state.enc", password, None) or {
-        "version": 1, "ledgers": {"ficticio": {"bets": []}, "real": {"bets": []}},
+        "version": 1, "ledgers": {"real": {"bets": []}},
         "snapshots": {}, "last_scan": None, "applied": [], "log": [], "last_summary": None}
+    L = state["ledgers"]
+    if "ficticio" in L:                       # versión anterior: una sola cartera ficticia
+        L["f_valor"] = L.pop("ficticio")
+    for k in METHODS:
+        L.setdefault("f_" + k, {"bets": []})
     if s.get("reset_ficticio") and s["reset_ficticio"] != state.get("reset_ficticio"):
-        state["ledgers"]["ficticio"]["bets"] = []
+        for k in METHODS:
+            L["f_" + k]["bets"] = []
         state["reset_ficticio"] = s["reset_ficticio"]
         note(state, "Modo ficticio reiniciado desde cero")
     inbox = read_enc("inbox.enc", password, [])
@@ -340,6 +389,7 @@ def run(password: str, force: bool = False):
     full = force or not last or pt(last) <= t - timedelta(hours=a["horas_entre_busquedas"]) + timedelta(minutes=10)
     sports = list(dict.fromkeys((s["ligas"] if full else []) + list(soon)))
     scan_summary = []
+    new_fict: dict[str, list] = {}
     for sport in sports:
         try:
             ref = reference(odds.odds(sport, books), a["metodo"])
@@ -356,22 +406,26 @@ def run(password: str, force: bool = False):
                     b["close_fair_odds"] = round(1 / p, 3)
         if sport not in s["ligas"] or not full:
             continue
-        cands = find_value(ref, s, allowed)
+        cands = find_value(ref, s, allowed, METHODS["valor"])
         in_window = sum(1 for r in ref.values()
                         if 20 <= (pt(r["commence"]) - t).total_seconds() / 60 <= a["horas_vista"] * 60)
         scan_summary.append((sport, len(ref), in_window, len(cands)))
         if s["ficticio"]["activo"]:
-            for b in place(state, s, sport, cands, "ficticio"):
-                if s["ficticio"].get("avisar"):
-                    telegram(s, f"🧪 <b>FICTICIO</b> · {b['event']} ({local(b['commence'])})\n"
-                                f"{b['selection']} a {b['odds']:.2f} en {b['book']} · {b['stake']:.2f} € · valor {b['ev']:+.1%}")
+            for k, m in METHODS.items():
+                for b in place(state, s, sport, cands if k == "valor" else find_value(ref, s, allowed, m), "f_" + k, m):
+                    new_fict.setdefault(m["nombre"], []).append(b)
         if s["real"]["activo"]:
-            for b in place(state, s, sport, cands, "real"):
+            rm = METHODS.get(s["real"].get("metodo"), METHODS["valor"])
+            for b in place(state, s, sport, cands if rm is METHODS["valor"] else find_value(ref, s, allowed, rm), "real", rm):
                 telegram(s, f"💶 <b>APUESTA REAL</b>\n<b>{b['event']}</b> · {local(b['commence'])}\n"
                             f"Entra en <b>{b['book']}</b> y apuesta a <b>{b['selection']}</b>\n"
                             f"Cuota: <b>{b['odds']:.2f}</b> (no bajes de {b['min_odds']:.2f})\n"
                             f"Importe: <b>{b['stake']:.2f} €</b>\n"
                             f"Después pulsa «La he hecho» en la web.")
+    if new_fict and s["ficticio"].get("avisar"):
+        telegram(s, "🧪 <b>Nuevas apuestas ficticias</b>\n" + "\n".join(
+            f"{n}: {len(v)} ({', '.join(b['selection'] + ' ' + format(b['odds'], '.2f') for b in v[:3])})"
+            for n, v in new_fict.items()))
     if full:
         state["last_scan"] = iso(t)
         names = {"soccer_spain_la_liga": "LaLiga", "soccer_epl": "Premier", "soccer_uefa_champs_league": "Champions",
@@ -390,12 +444,11 @@ def run(password: str, force: bool = False):
     loc = t.astimezone(MAD)
     if s.get("resumen_diario") and loc.hour >= 21 and state.get("last_summary") != loc.strftime("%Y-%m-%d"):
         lines = []
-        for name in ("ficticio", "real"):
-            if not s[name]["activo"]:
-                continue
+        names = (["f_" + k for k in METHODS] if s["ficticio"]["activo"] else []) + (["real"] if s["real"]["activo"] else [])
+        for name in names:
             bank = ledger_bank(state, s, name)
-            lines.append(f"{'🧪 Ficticio' if name == 'ficticio' else '💶 Real'}: {bank:.2f} € "
-                         f"({bank - s[name]['banca_inicial']:+.2f} €)")
+            label = "💶 Real" if name == "real" else "🧪 " + METHODS[name[2:]]["nombre"]
+            lines.append(f"{label}: {bank:.2f} € ({bank - bank0(s, name):+.2f} €)")
         if lines:
             telegram(s, "<b>Resumen del día</b>\n" + "\n".join(lines))
         state["last_summary"] = loc.strftime("%Y-%m-%d")

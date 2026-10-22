@@ -76,6 +76,10 @@ input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 a{color:var(--accent)}
 code{font:13px var(--f-m);background:var(--sunk);padding:1px 5px;border-radius:4px;word-break:break-all}
 details summary{cursor:pointer;font-weight:600}
+#comp th,#comp td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+#comp th:first-child,#comp td:first-child{text-align:left;white-space:normal}
+#comp th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+#comp tr.sel td{background:var(--accent-soft)} #comp tbody tr{cursor:pointer}
 .log{font:12px/1.6 var(--f-m);color:var(--muted);max-height:220px;overflow:auto}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;z-index:20;max-width:90vw}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -176,6 +180,12 @@ details summary{cursor:pointer;font-weight:600}
     <div style="display:flex;flex-direction:column;gap:16px">
       <div id="realOff" class="note" hidden>El modo real está apagado. Actívalo en <b>Ajustes</b> cuando el ficticio lleve un tiempo funcionando bien.</div>
       <div id="stopNote" class="note bad" hidden></div>
+      <div class="card" id="methodBox">
+        <label>Método<select id="method"></select></label>
+        <p class="small muted" id="methodTxt"></p>
+        <div class="row"><button class="btn sm real" id="useReal">Usar este método en el modo real</button><span class="small" id="useRealMsg"></span></div>
+      </div>
+      <p class="small" id="realMethod" hidden></p>
       <div class="card">
         <div class="hero">
           <div><div class="k" id="bankLbl">Banca ficticia</div><div class="big" id="bank">—</div></div>
@@ -187,6 +197,11 @@ details summary{cursor:pointer;font-weight:600}
           <div><div class="k">Calidad (CLV)</div><div class="v" id="sC">—</div></div>
         </div>
         <p class="small muted" id="verdict"></p>
+      </div>
+      <div class="card" id="compBox">
+        <h3>Comparativa de métodos</h3>
+        <p class="small muted">Todos empiezan con el mismo dinero ficticio y apuestan a la vez. Pulsa uno para verlo.</p>
+        <div style="overflow-x:auto"><table id="comp" style="width:100%;border-collapse:collapse;font-size:13px"></table></div>
       </div>
       <div id="propBox" hidden style="display:flex;flex-direction:column;gap:10px">
         <h2>Para apostar ahora</h2>
@@ -227,7 +242,7 @@ details summary{cursor:pointer;font-weight:600}
       <div class="card">
         <h3>🧪 Modo ficticio</h3>
         <label class="chk"><input type="checkbox" id="aFOn"> Activado</label>
-        <label>Dinero de prueba (€)<input type="number" id="aFBank" step="1"></label>
+        <label>Dinero de prueba por método (€)<input type="number" id="aFBank" step="1"></label>
         <label class="chk"><input type="checkbox" id="aFNotify"> Avisarme en Telegram de las apuestas ficticias</label>
         <button class="btn sm ghost" id="aFReset" style="align-self:flex-start">Empezar el ficticio de cero</button>
       </div>
@@ -391,7 +406,7 @@ const PROFILE_TXT={prudente:'Solo apuestas con al menos un 3 % de ventaja, impor
  normal:'Algo más de apuestas (desde 2,5 % de ventaja) e importes un poco mayores. Más rápido, pero con más altibajos.',
  personal:'Has cambiado los ajustes avanzados a mano.'};
 const DEFAULTS={odds_api_key:'',telegram_token:'',telegram_chat_id:'',ficticio:{activo:true,banca_inicial:50,avisar:true},
- real:{activo:false,banca_inicial:50},ligas:['soccer_spain_la_liga','soccer_epl','soccer_uefa_champs_league'],casas:['williamhill','sport888','betway','betfair_sb_uk','leovegas'],resumen_diario:true,perfil:'prudente',
+ real:{activo:false,banca_inicial:50,metodo:'valor'},ligas:['soccer_spain_la_liga','soccer_epl','soccer_uefa_champs_league'],casas:['williamhill','sport888','betway','betfair_sb_uk','leovegas'],resumen_diario:true,perfil:'prudente',
  avanzado:{valor_minimo:0.03,valor_maximo:0.15,fraccion_kelly:0.25,tope:0.04,minima:0.5,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30,horas_vista:30,horas_entre_busquedas:6,metodo:'power'}};
 const merge=(a,b)=>{const o={...a};for(const k in b||{})o[k]=(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k])?merge(a[k],b[k]):b[k];return o};
 
@@ -453,6 +468,27 @@ $('suGo').onclick=async()=>{
   }catch(e){msg.innerHTML='<span class="neg">'+esc(e.message)+'</span>';$('suGo').disabled=false}
 };
 
+/* ---------- métodos ---------- */
+const METHODS={
+ valor:{n:'Valor contra Pinnacle',d:'El método principal. Probabilidad real sacada de Pinnacle; apuesta si una casa paga al menos tu valor mínimo (3 %). Importe según Kelly.'},
+ estricto:{n:'Valor alto',d:'Solo apuestas con un 5 % de valor o más y cuotas hasta 4,00. Menos apuestas, pero más seguras de que el valor es real.'},
+ favoritos:{n:'Favoritos con valor',d:'Solo cuotas hasta 2,20 con un 2 % de valor o más. Acierta más a menudo y tiene menos rachas malas.'},
+ plano:{n:'Valor con importe fijo',d:'Las mismas apuestas que el método principal, pero siempre con el 1 % de la banca. Sirve para ver si Kelly ayuda o perjudica.'},
+ consenso:{n:'Consenso de casas',d:'Probabilidad real = media de todas las casas sin margen. Apuesta cuando una paga un 5 % más que el consenso (estudio Kaunitz, 2017). Necesita al menos 3 casas.'},
+ control:{n:'Control: siempre el favorito',d:'Sin método: apuesta al favorito de cada partido. Sirve de comparación; debería perder poco a poco. Si un método no lo supera, no funciona.'}};
+let METHOD=ls.get('mv.method')||'valor';if(!METHODS[METHOD])METHOD='valor';
+$('method').innerHTML=Object.entries(METHODS).map(([k,m])=>`<option value="${k}">${m.n}</option>`).join('');
+$('method').onchange=e=>{METHOD=e.target.value;ls.set('mv.method',METHOD);renderState()};
+const ledgerKey=()=>MODE==='real'?'real':'f_'+METHOD;
+function ledgerOf(k){const L=STATE?.ledgers||{};if(k==='f_valor'&&!L.f_valor&&L.ficticio)return L.ficticio.bets;return L[k]?.bets||[]}
+$('useReal').onclick=async()=>{
+  if(!TOKEN){toast('Pon tu token de GitHub en Ajustes');return}
+  const s=structuredClone(SETTINGS);s.real.metodo=METHOD;$('useRealMsg').textContent='Guardando…';
+  try{await writeFile('docs/data/settings.enc',await enc(s,PW),'método real');SETTINGS=s;
+    $('useRealMsg').innerHTML=`<span class="pos">El modo real usará «${esc(METHODS[METHOD].n)}».</span>`+(s.real.activo?'':' Actívalo en Ajustes cuando quieras.');renderState()}
+  catch(e){$('useRealMsg').innerHTML='<span class="neg">'+esc(e.message)+'</span>'}};
+$('comp').addEventListener('click',e=>{const tr=e.target.closest('tr[data-m]');if(!tr)return;METHOD=tr.dataset.m;ls.set('mv.method',METHOD);$('method').value=METHOD;renderState();window.scrollTo({top:0,behavior:'smooth'})});
+
 /* ---------- estado ---------- */
 let MODE=ls.get('mv.mode')||'ficticio';
 function setMode(m){MODE=m;ls.set('mv.mode',m);$('mFict').setAttribute('aria-pressed',m==='ficticio');$('mReal').setAttribute('aria-pressed',m==='real');renderState()}
@@ -500,9 +536,21 @@ function betCard(b,kind){
 function renderState(){
   if(!SETTINGS)return;
   const real=MODE==='real';
-  $('bankLbl').textContent=real?'Banca real':'Banca ficticia';
+  const rm=METHODS[SETTINGS.real.metodo]?SETTINGS.real.metodo:'valor';
+  $('bankLbl').textContent=real?'Banca real':'Banca ficticia · '+METHODS[METHOD].n;
   $('realOff').hidden=!(real&&!SETTINGS.real.activo);
-  const L=STATE?.ledgers?.[MODE]?.bets||[];const b0=SETTINGS[MODE].banca_inicial;const s=stats(L,b0);
+  $('methodBox').hidden=real;$('compBox').hidden=real;
+  $('method').value=METHOD;$('methodTxt').textContent=METHODS[METHOD].d;
+  $('useReal').hidden=SETTINGS.real.metodo===METHOD;
+  if(SETTINGS.real.metodo===METHOD)$('useRealMsg').innerHTML='<span class="chip c-r">Es el método del modo real</span>';else if(!$('useRealMsg').textContent.startsWith('Guard'))$('useRealMsg').textContent='';
+  $('realMethod').hidden=!real;$('realMethod').innerHTML=`Método en uso: <b>${esc(METHODS[rm].n)}</b>. Para cambiarlo, elige otro en el modo Ficticio.`;
+  const L=ledgerOf(ledgerKey());const b0=real?SETTINGS.real.banca_inicial:SETTINGS.ficticio.banca_inicial;const s=stats(L,b0);
+  if(!real){const fb=SETTINGS.ficticio.banca_inicial;
+    $('comp').innerHTML='<thead><tr><th>Método</th><th>Banca</th><th>Apuestas</th><th>Rentab.</th><th>CLV</th></tr></thead><tbody>'+
+      Object.entries(METHODS).map(([k,m])=>{const x=stats(ledgerOf('f_'+k),fb);
+        return `<tr data-m="${k}" class="${k===METHOD?'sel':''}"><td>${esc(m.n)}${SETTINGS.real.metodo===k?' <span class="chip c-r">real</span>':''}</td>
+        <td class="${x.pnl>=0?'pos':'neg'}">${eur(x.bank)}</td><td>${x.done.length}</td><td>${x.staked?sPct(x.pnl/x.staked):'—'}</td>
+        <td class="${x.clv==null?'':x.clv>=0?'pos':'neg'}">${x.clv==null?'—':sPct(x.clv)}</td></tr>`}).join('')+'</tbody>'}
   $('bank').textContent=eur(s.bank);$('delta').textContent=sEur(s.pnl);$('delta').className='v '+(s.pnl>=0?'pos':'neg');
   $('sN').textContent=s.done.length;$('sY').textContent=s.staked?sPct(s.pnl/s.staked):'—';$('sY').className='v '+(s.pnl>=0?'pos':'neg');
   $('sC').textContent=s.clv==null?'—':sPct(s.clv);$('sC').className='v '+(s.clv==null?'':s.clv>=0?'pos':'neg');
@@ -515,7 +563,7 @@ function renderState(){
   $('updated').textContent=STATE?.updated?'Última revisión del bot: '+when(STATE.updated)+(STATE.credits?` · créditos de cuotas: ${STATE.credits}`:''):'El bot aún no ha hecho su primera pasada.';
   showScan(false);
   $('log').innerHTML=(STATE?.log||[]).slice().reverse().map(l=>esc(when(l.ts)+' · '+l.text)).join('<br>');
-  const a=SETTINGS.avanzado,lastStop=(STATE?.log||[]).slice().reverse().find(l=>l.text.startsWith(MODE+': sin apuestas'));
+  const a=SETTINGS.avanzado,lastStop=(STATE?.log||[]).slice().reverse().find(l=>l.text.startsWith(ledgerKey()+': sin apuestas'));
   $('stopNote').hidden=!lastStop||(Date.now()-new Date(lastStop.ts))>864e5;if(lastStop)$('stopNote').textContent='Pausa automática: '+lastStop.text.split('(')[1]?.replace(')','');
 }
 document.addEventListener('click',async e=>{
@@ -561,7 +609,7 @@ $('aSave').onclick=async()=>{
   if($('aROn').checked&&!$('aRAck').checked){msg.innerHTML='<span class="neg">Para activar el modo real marca la casilla de confirmación.</span>';return}
   s.perfil=$('aProfile').value;
   s.ficticio={activo:$('aFOn').checked,banca_inicial:+$('aFBank').value||50,avisar:$('aFNotify').checked};
-  s.real={activo:$('aROn').checked,banca_inicial:+$('aRBank').value||0};
+  s.real={activo:$('aROn').checked,banca_inicial:+$('aRBank').value||0,metodo:SETTINGS.real.metodo||'valor'};
   s.ligas=[...$('aLeagues').querySelectorAll('input:checked')].map(i=>i.value);
   s.casas=[...$('aBooks').querySelectorAll('input:checked')].map(i=>i.value);
   s.telegram_token=$('aTg').value.trim();s.telegram_chat_id=$('aChat').value.trim();s.resumen_diario=$('aDaily').checked;
