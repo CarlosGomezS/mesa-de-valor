@@ -405,11 +405,15 @@ async function setSecret(name,value,tok){
 async function dispatch(){return gh('/actions/workflows/bot.yml/dispatches',{method:'POST',body:JSON.stringify({ref:'main',inputs:{forzar:'si'}})})}
 
 /* ---------- datos fijos ---------- */
-const LEAGUES=[['soccer_spain_la_liga','LaLiga'],['soccer_spain_segunda_division','Segunda División'],['soccer_efl_champ','Championship (Inglaterra 2.ª)'],
- ['soccer_netherlands_eredivisie','Eredivisie'],['soccer_portugal_primeira_liga','Liga Portugal'],['soccer_germany_bundesliga2','Bundesliga 2'],
- ['soccer_epl','Premier League'],['soccer_italy_serie_a','Serie A'],['soccer_germany_bundesliga','Bundesliga'],['soccer_france_ligue_one','Ligue 1'],
- ['soccer_uefa_champs_league','Champions League'],['soccer_uefa_europa_league','Europa League'],['basketball_euroleague','Euroliga'],['basketball_nba','NBA']];
-const LEAGUES_V2=['soccer_spain_la_liga','soccer_spain_segunda_division','soccer_efl_champ','soccer_netherlands_eredivisie','soccer_portugal_primeira_liga','soccer_germany_bundesliga2'];
+const LEAGUES=[
+ ['soccer_spain_la_liga','⚽ LaLiga'],['soccer_spain_segunda_division','⚽ Segunda División'],['soccer_efl_champ','⚽ Championship (Inglaterra 2.ª)'],
+ ['soccer_netherlands_eredivisie','⚽ Eredivisie'],['soccer_portugal_primeira_liga','⚽ Liga Portugal'],['soccer_germany_bundesliga2','⚽ Bundesliga 2'],
+ ['soccer_epl','⚽ Premier League'],['soccer_italy_serie_a','⚽ Serie A'],['soccer_germany_bundesliga','⚽ Bundesliga'],['soccer_france_ligue_one','⚽ Ligue 1'],
+ ['soccer_uefa_champs_league','⚽ Champions League'],['soccer_uefa_europa_league','⚽ Europa League'],
+ ['basketball_euroleague','🏀 Euroliga'],['basketball_nba','🏀 NBA'],
+ ['tennis_all','🎾 Tenis: todos los torneos ATP y WTA activos'],
+ ['handball_germany_bundesliga','🤾 Balonmano: Bundesliga alemana']];
+const LEAGUES_V2=['soccer_spain_la_liga','soccer_spain_segunda_division','soccer_efl_champ','basketball_euroleague','tennis_all','handball_germany_bundesliga'];
 const BOOKS=[['williamhill','William Hill'],['sport888','888sport'],['betway','Betway'],['betfair_sb_uk','Betfair (casa de apuestas)'],['leovegas','LeoVegas'],
  ['betsson','Betsson'],['codere_it','Codere (cuotas de su web italiana)'],['winamax_fr','Winamax (cuotas de su web francesa)']];
 const PROFILES={
@@ -419,7 +423,7 @@ const PROFILE_TXT={prudente:'Solo apuestas con al menos un 3 % de ventaja, impor
  normal:'Algo más de apuestas (desde 2,5 % de ventaja) e importes un poco mayores. Más rápido, pero con más altibajos.',
  personal:'Has cambiado los ajustes avanzados a mano.'};
 const DEFAULTS={odds_api_key:'',telegram_token:'',telegram_chat_id:'',ficticio:{activo:true,banca_inicial:50,avisar:true},
- real:{activo:false,banca_inicial:50,metodo:'valor'},ligas:LEAGUES_V2.slice(),ligas_version:2,casas:['williamhill','sport888','betway','betfair_sb_uk','leovegas'],resumen_diario:true,perfil:'prudente',
+ real:{activo:false,banca_inicial:50,metodo:'valor'},ligas:LEAGUES_V2.slice(),ligas_version:3,casas:['williamhill','sport888','betway','betfair_sb_uk','leovegas'],resumen_diario:true,perfil:'prudente',
  avanzado:{valor_minimo:0.03,valor_maximo:0.15,fraccion_kelly:0.25,tope:0.04,minima:0.5,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30,horas_vista:30,horas_entre_busquedas:6,metodo:'power'}};
 const merge=(a,b)=>{const o={...a};for(const k in b||{})o[k]=(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k])?merge(a[k],b[k]):b[k];return o};
 
@@ -438,9 +442,9 @@ async function login(pw,silent){
   const raw=await dec(f.text,pw);SETTINGS=merge(DEFAULTS,raw);PW=pw;
   const v=ls.get('mv.vault');if(v){try{TOKEN=(await dec(v,pw)).token}catch(e){}}
   screen('scrApp');fillSettings();await loadState();
-  if(raw.ligas_version!==2&&TOKEN){
-    const s2=structuredClone(SETTINGS);s2.ligas=LEAGUES_V2.slice();s2.ligas_version=2;
-    try{await writeFile('docs/data/settings.enc',await enc(s2,PW),'ligas recomendadas');SETTINGS=s2;fillSettings();toast('Ligas actualizadas a las recomendadas')}catch(e){}
+  if(raw.ligas_version!==3&&TOKEN){
+    const s2=structuredClone(SETTINGS);s2.ligas=LEAGUES_V2.slice();s2.ligas_version=3;s2.avanzado.horas_entre_busquedas=8;
+    try{await writeFile('docs/data/settings.enc',await enc(s2,PW),'ligas recomendadas');SETTINGS=s2;fillSettings();toast('Deportes actualizados: fútbol, baloncesto, tenis y balonmano')}catch(e){}
   }
 }
 $('loginBtn').onclick=async()=>{$('loginErr').textContent='';
@@ -494,8 +498,8 @@ const METHODS={
  medias:{n:'Cuotas medias (1,6–3)',d:'Solo cuotas entre 1,60 y 3,00: evita favoritos muy claros y sorpresas. Rachas más cortas.'},
  longshots:{n:'Sorpresas con valor',d:'Cuotas de 4,00 o más con valor del 5 %+. Es donde las casas más cobran, pero también donde a veces se equivocan. Mucha varianza.'},
  empates:{n:'Solo empates',d:'Solo apuesta al empate cuando tiene valor (2 %+). Los aficionados casi nunca apuestan empates y algunas casas los ajustan peor.'},
- local:{n:'Solo local',d:'Solo apuestas al equipo de casa con valor.'},
- visitante:{n:'Solo visitante',d:'Solo apuestas al equipo de fuera con valor.'},
+ tenis:{n:'Solo tenis',d:'El método principal, solo en tenis (todos los torneos ATP y WTA activos). Los estudios ven las cuotas de tenis peor ajustadas en partidos entre jugadores fuera del top 50.'},
+ balonmano:{n:'Solo balonmano',d:'El método principal, solo en balonmano (Bundesliga alemana, la liga de la que hay cuotas). Mercado pequeño: menos apuestas, pero casas menos atentas.'},
  cerca:{n:'Cerca del inicio (<6 h)',d:'Solo partidos que empiezan en menos de 6 horas, cuando Pinnacle ya ha recogido alineaciones y noticias y su precio es más fiable.'},
  anticipado:{n:'Con antelación (>12 h)',d:'Solo partidos a más de 12 horas, con valor del 4 %+. Las casas tardan más en ajustar, pero la referencia es menos precisa.'},
  steam:{n:'Movimiento de Pinnacle',d:'Apuesta cuando Pinnacle sube la probabilidad de un resultado 2 puntos o más entre búsquedas y una casa aún no ha movido su cuota. Las casas tradicionales tardan de media cerca de una hora en seguir a Pinnacle.'},
@@ -640,8 +644,8 @@ function fillSettings(){
   document.querySelectorAll('[data-adv]').forEach(i=>{const v=s.avanzado[i.dataset.adv];i.value=i.hasAttribute('data-pct')?+(v*100).toFixed(2):v});
   credits();
 }
-function credits(){const n=[...$('aLeagues').querySelectorAll('input:checked')].length;const h=+document.querySelector('[data-adv=horas_entre_busquedas]').value||6;
-  const est=Math.round(n*24/h*30+60);$('credits').innerHTML=`Uso estimado: ~${est} consultas al mes de las 500 gratis.`+(est>480?' <span class="neg">Te pasarías: quita ligas o busca con menos frecuencia.</span>':'')}
+function credits(){const n=[...$('aLeagues').querySelectorAll('input:checked')].reduce((a,i)=>a+(i.value==='tennis_all'?3:1),0)*0.6;const h=+document.querySelector('[data-adv=horas_entre_busquedas]').value||6;
+  const est=Math.round(n*24/h*30+120);$('credits').innerHTML=`Uso estimado: ~${est} consultas al mes de las 500 gratis. Las ligas sin partidos no gastan.`+(est>480?' <span class="neg">Puede quedarse corto: el bot reparte solo las consultas por días y, si se acaban las del día, espera al siguiente.</span>':'')}
 $('aLeagues').addEventListener('change',credits);
 document.querySelector('[data-adv=horas_entre_busquedas]').addEventListener('input',credits);
 $('aProfile').onchange=e=>{const p=PROFILES[e.target.value];$('profileTxt').textContent=PROFILE_TXT[e.target.value];

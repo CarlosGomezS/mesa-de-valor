@@ -34,6 +34,9 @@ class FakeOdds:
         FakeOdds.calls.append(("odds", sport))
         return FakeOdds.events if sport == "soccer_spain_la_liga" else []
 
+    def active_sports(self):
+        return ["tennis_atp_paris_masters", "soccer_spain_la_liga"]
+
     def scores(self, sport):
         FakeOdds.calls.append(("scores", sport))
         return FakeOdds.scores_data
@@ -169,11 +172,13 @@ class Methods(unittest.TestCase):
 
     def test_twenty_methods(self):
         self.assertEqual(len(run.METHODS), 20)
+        self.assertIn("tenis", run.METHODS)
+        self.assertEqual(self.pick("tenis"), [])
+        self.assertEqual(self.pick("tenis", "tennis_atp_paris_masters"), [("Real Betis", 2.55)])
 
     def test_filters(self):
         self.assertEqual(self.pick("valor"), [("Real Betis", 2.55)])
         self.assertEqual(self.pick("empates"), [("Draw", 3.6)])
-        self.assertEqual(self.pick("visitante"), [])
         self.assertEqual(self.pick("baloncesto"), [])
         self.assertEqual(self.pick("anticipado"), [])         # empieza en 3 h
         self.assertEqual(self.pick("cerca"), [("Real Betis", 2.55)])
@@ -183,3 +188,31 @@ class Methods(unittest.TestCase):
         r = next(iter(self.ref.values()))
         r["prev"] = {k: v - (0.03 if k == "Real Betis" else -0.015) for k, v in r["fair"].items()}
         self.assertEqual(self.pick("steam"), [("Real Betis", 2.55)])
+
+
+class Budget(unittest.TestCase):
+    def test_allowance(self):
+        class O: remaining = "300"
+        st_ = {}
+        b = run.budget(st_, O, datetime(2026, 10, 23, 12, tzinfo=UTC))
+        self.assertEqual(b["allow"], (300 - 10) // 9)   # 9 días hasta el 1 de noviembre
+        self.assertTrue(run.can_spend(st_, O))
+        O.remaining = str(300 - b["allow"])
+        self.assertFalse(run.can_spend(st_, O))
+
+    def test_void_after_48h(self):
+        tmp = tempfile.TemporaryDirectory()
+        run.DATA = Path(tmp.name); run.Odds = FakeOdds; sent = []; run.telegram = lambda s, t: sent.append(t)
+        FakeOdds.events = []; FakeOdds.scores_data = []
+        (run.DATA / "settings.enc").write_text(run.encrypt({"odds_api_key": "k"}, PW))
+        old = (datetime.now(UTC) - timedelta(hours=50)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        bet = {"id": "q", "status": "abierta", "pnl": None, "sport": "tennis_atp_paris_masters", "event_id": "z", "event": "A - B",
+               "stake": 2, "odds": 2.0, "selection": "A", "commence": old, "created": old, "settled": None}
+        state = {"version": 1, "ledgers": {"real": {"bets": []}, "f_valor": {"bets": [bet]}}, "snapshots": {},
+                 "last_scan": None, "applied": [], "log": []}
+        (run.DATA / "state.enc").write_text(run.encrypt(state, PW))
+        run.run(PW)
+        b = run.decrypt((run.DATA / "state.enc").read_text(), PW)["ledgers"]["f_valor"]["bets"][0]
+        self.assertEqual((b["status"], b["pnl"]), ("nula", 0.0))
+        self.assertTrue(any("anulada" in m for m in sent))
+        tmp.cleanup()

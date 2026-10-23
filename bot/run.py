@@ -38,12 +38,12 @@ DEFAULT_SETTINGS = {
     "ficticio": {"activo": True, "banca_inicial": 50.0, "avisar": True},
     "real": {"activo": False, "banca_inicial": 50.0, "metodo": "valor"},
     "ligas": ["soccer_spain_la_liga", "soccer_spain_segunda_division", "soccer_efl_champ",
-              "soccer_netherlands_eredivisie", "soccer_portugal_primeira_liga", "soccer_germany_bundesliga2"],
+              "basketball_euroleague", "tennis_all", "handball_germany_bundesliga"],
     "casas": ["williamhill", "sport888", "betway", "betfair_sb_uk", "leovegas"],
     "resumen_diario": True,
     "avanzado": {"valor_minimo": 0.03, "valor_maximo": 0.15, "fraccion_kelly": 0.25, "tope": 0.04,
                  "minima": 0.5, "limite_diario": 0.10, "limite_semanal": 0.20, "parar_si_cae": 0.40,
-                 "max_dia": 6, "max_exposicion": 0.30, "horas_vista": 30, "horas_entre_busquedas": 6,
+                 "max_dia": 6, "max_exposicion": 0.30, "horas_vista": 30, "horas_entre_busquedas": 8,
                  "metodo": "power"},
 }
 
@@ -59,8 +59,8 @@ METHODS = {
     "medias":      {"nombre": "Cuotas medias (1,6–3)", "ref": "pinnacle", "min_odds": 1.6, "max_odds": 3.0},
     "longshots":   {"nombre": "Sorpresas con valor", "ref": "pinnacle", "min_ev": 0.05, "min_odds": 4.0},
     "empates":     {"nombre": "Solo empates", "ref": "pinnacle", "min_ev": 0.02, "outcome": "draw"},
-    "local":       {"nombre": "Solo local", "ref": "pinnacle", "outcome": "home"},
-    "visitante":   {"nombre": "Solo visitante", "ref": "pinnacle", "outcome": "away"},
+    "tenis":       {"nombre": "Solo tenis", "ref": "pinnacle", "sport": "tennis"},
+    "balonmano":   {"nombre": "Solo balonmano", "ref": "pinnacle", "sport": "handball"},
     "cerca":       {"nombre": "Cerca del inicio (<6 h)", "ref": "pinnacle", "min_ev": 0.02, "max_h": 6},
     "anticipado":  {"nombre": "Con antelación (>12 h)", "ref": "pinnacle", "min_ev": 0.04, "min_h": 12},
     "steam":       {"nombre": "Movimiento de Pinnacle", "ref": "steam", "min_ev": 0.015},
@@ -170,6 +170,11 @@ class Odds:
         else:
             q["regions"] = "eu"
         return self._get(f"/sports/{sport}/odds/", q)
+
+    def active_sports(self) -> list[str]:
+        """Lista de competiciones activas. Gratuita."""
+        data, _ = http_json(f"{self.BASE}/sports/?{urllib.parse.urlencode({'apiKey': self.key})}")
+        return [x["key"] for x in (data or []) if x.get("active") and not x.get("has_outrights")]
 
     def scores(self, sport: str):
         return self._get(f"/sports/{sport}/scores/", {"daysFrom": 3})
@@ -398,6 +403,31 @@ def note(state, text):
     print(text)
 
 
+# ============================ presupuesto de consultas ============================
+
+def budget(state: dict, odds: "Odds", t: datetime) -> dict:
+    """Reparte los créditos que quedan entre los días que faltan de mes, para no quedarse sin ellos."""
+    day = t.astimezone(MAD).strftime("%Y-%m-%d")
+    b = state.get("budget") or {}
+    rem = int(odds.remaining) if str(odds.remaining or "").isdigit() else None
+    if b.get("day") != day and rem is not None:
+        nxt = (t.astimezone(MAD).replace(day=28) + timedelta(days=4)).replace(day=1)
+        days_left = max(1, (nxt.date() - t.astimezone(MAD).date()).days)
+        b = {"day": day, "start": rem, "allow": max(4, (rem - 10) // days_left), "warned": False}
+        state["budget"] = b
+    return b
+
+
+def can_spend(state: dict, odds: "Odds") -> bool:
+    b = state.get("budget") or {}
+    rem = int(odds.remaining) if str(odds.remaining or "").isdigit() else None
+    if rem is None or not b:
+        return True
+    if rem <= 10:
+        return False
+    return (b["start"] - rem) < b["allow"]
+
+
 # ============================ ciclo ============================
 
 def run(password: str, force: bool = False):
@@ -461,6 +491,11 @@ def run(password: str, force: bool = False):
             settle_bet(b, "ganada" if winner == b["outcome_key"] else "perdida")
             settled_now.append((owner.get(id(b), "?"), b, f"{x['home_team']} {int(hs)}-{int(w)} {x['away_team']}"))
 
+    for name, Lg in state["ledgers"].items():
+        for b in Lg["bets"]:
+            if b["status"] == "abierta" and pt(b["commence"]) < t - timedelta(hours=48):
+                settle_bet(b, "nula")
+                settled_now.append((name, b, b["event"] + " (sin resultado: anulada, se devuelve el importe)"))
     if settled_now:
         by_match: dict[str, list] = {}
         for name, b, score in settled_now:
@@ -470,7 +505,8 @@ def run(password: str, force: bool = False):
             lines.append(f"\n<b>{h(score)}</b>")
             for name, b in sorted(items, key=lambda x: -(x[1]["pnl"] or 0)):
                 who = "💶 REAL" if name == "real" else METHODS.get(name[2:], {}).get("nombre", name)
-                lines.append(f"{'✅' if b['status'] == 'ganada' else '❌'} {h(who)}: {h(b['selection'])} "
+                icon = "✅" if b["status"] == "ganada" else "↩️" if b["status"] == "nula" else "❌"
+                lines.append(f"{icon} {h(who)}: {h(b['selection'])} "
                              f"{b['odds']:.2f} → {eur(b['pnl'])}")
         report.append("\n".join(lines))
 
@@ -481,7 +517,21 @@ def run(password: str, force: bool = False):
     # 4) búsqueda completa cada X horas (o si la pides desde la web)
     last = state.get("last_scan")
     full = force or not last or pt(last) <= t - timedelta(hours=a["horas_entre_busquedas"]) + timedelta(minutes=10)
-    sports = list(dict.fromkeys((s["ligas"] if full else []) + list(soon)))
+    leagues = list(s["ligas"])
+    if "tennis_all" in leagues:
+        leagues.remove("tennis_all")
+        try:
+            leagues += [k for k in odds.active_sports() if k.startswith("tennis_")]
+        except Exception as e:
+            report.append(f"⚠️ No pude leer los torneos de tenis activos: {h(e)}")
+    budget(state, odds, t)
+    if full and not force and not can_spend(state, odds):
+        full = False
+        if not state["budget"].get("warned"):
+            state["budget"]["warned"] = True
+            report.append(f"💳 Hoy ya se han usado las consultas previstas ({state['budget']['allow']}). "
+                          f"Sigo cobrando resultados, y mañana vuelvo a buscar. Quedan {odds.remaining}.")
+    sports = list(dict.fromkeys((leagues if full else []) + list(soon)))
     scan_summary = []
     clv_now: dict[str, list] = {}
     new_fict: dict[str, list] = {}
@@ -490,6 +540,8 @@ def run(password: str, force: bool = False):
     for sport in sports:
         try:
             if sport in soon and not full:
+                if not can_spend(state, odds):
+                    continue
                 ref = reference(odds.odds(sport, books, t, t + timedelta(minutes=90)), a["metodo"])
             else:
                 frm, to = t, t + timedelta(hours=a["horas_vista"])
@@ -512,7 +564,7 @@ def run(password: str, force: bool = False):
                 if p:
                     b["close_fair_odds"] = round(1 / p, 3)
                     clv_now.setdefault(b["event"], []).append(b)
-        if sport not in s["ligas"] or not full:
+        if sport not in leagues or not full:
             continue
         cands = find_value(ref, s, allowed, METHODS["valor"], sport)
         in_window = sum(1 for r in ref.values()
@@ -560,8 +612,9 @@ def run(password: str, force: bool = False):
         names = {"soccer_spain_la_liga": "LaLiga", "soccer_epl": "Premier", "soccer_uefa_champs_league": "Champions",
                  "soccer_uefa_europa_league": "Europa League", "soccer_italy_serie_a": "Serie A",
                  "soccer_germany_bundesliga": "Bundesliga", "soccer_france_ligue_one": "Ligue 1",
-                 "soccer_spain_segunda_division": "Segunda", "basketball_euroleague": "Euroliga", "basketball_nba": "NBA"}
-        parts = [f"{names.get(sp, sp)}: {n} partidos, {w} en las próximas {a['horas_vista']} h, {c} con valor"
+                 "soccer_spain_segunda_division": "Segunda", "basketball_euroleague": "Euroliga", "basketball_nba": "NBA",
+                 "soccer_efl_champ": "Championship", "handball_germany_bundesliga": "Balonmano Bundesliga"}
+        parts = [f"{names.get(sp, sp.replace('tennis_atp_', 'Tenis ATP ').replace('tennis_wta_', 'Tenis WTA ').replace('_', ' '))}: {n} partidos, {w} en las próximas {a['horas_vista']} h, {c} con valor"
                  for sp, n, w, c in scan_summary]
         state["last_scan_summary"] = {"ts": iso(t), "lines": parts,
                                       "found": sum(c for *_, c in scan_summary)}
