@@ -9,6 +9,7 @@ Variables de entorno: APP_PASSWORD (obligatoria), FORZAR=si para buscar ya.
 from __future__ import annotations
 
 import base64
+import html
 import hashlib
 import json
 import os
@@ -174,6 +175,33 @@ class Odds:
         return self._get(f"/sports/{sport}/scores/", {"daysFrom": 3})
 
 
+def telegram_long(s: dict, sections: list[str]):
+    """Envía varias secciones juntas, partiendo en mensajes de menos de 4.000 caracteres."""
+    buf = ""
+    for sec in sections:
+        if buf and len(buf) + len(sec) + 2 > 3800:
+            telegram(s, buf)
+            buf = ""
+        while len(sec) > 3800:
+            telegram(s, sec[:3800])
+            sec = sec[3800:]
+        buf = f"{buf}\n\n{sec}" if buf else sec
+    if buf:
+        telegram(s, buf)
+
+
+def h(x) -> str:
+    return html.escape(str(x), quote=False)
+
+
+def pc(x: float) -> str:
+    return f"{x * 100:+.1f} %".replace(".", ",")
+
+
+def eur(x: float) -> str:
+    return f"{x:+.2f} €".replace(".", ",")
+
+
 def telegram(s: dict, text: str):
     tok, chat = s.get("telegram_token"), str(s.get("telegram_chat_id") or "")
     if not tok or not chat:
@@ -333,8 +361,9 @@ def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict
     return new
 
 
-def apply_inbox(state, inbox: list[dict]):
+def apply_inbox(state, inbox: list[dict]) -> list[str]:
     done = set(state.get("applied", []))
+    msgs = []
     for act in inbox:
         if act.get("id") in done:
             continue
@@ -346,12 +375,15 @@ def apply_inbox(state, inbox: list[dict]):
                 b["odds"] = float(act.get("odds") or b["odds"])
                 b["stake"] = float(act.get("stake") or b["stake"])
                 b["ev"] = round(st.ev_back(b["fair_p"], b["odds"]), 4)
+                msgs.append(f"📝 Anotada tu apuesta real: {b['event']} · {b['selection']} a {b['odds']:.2f} · {b['stake']:.2f} €")
             elif act["type"] == "no" and b["status"] == "propuesta":
                 b["status"] = "descartada"
+                msgs.append(f"🚫 Apuesta real descartada: {b['event']} · {b['selection']}")
             elif act["type"] == "resultado" and b["status"] == "abierta":
                 settle_bet(b, act["result"])
         done.add(act.get("id"))
     state["applied"] = list(done)[-500:]
+    return msgs
 
 
 def settle_bet(b: dict, result: str):
@@ -383,13 +415,15 @@ def run(password: str, force: bool = False):
             L["f_" + k]["bets"] = []
         state["reset_ficticio"] = s["reset_ficticio"]
         note(state, "Modo ficticio reiniciado desde cero")
+        telegram(s, "🔄 Modo ficticio reiniciado: todos los métodos vuelven a empezar con su dinero inicial.")
     inbox = read_enc("inbox.enc", password, [])
-    apply_inbox(state, inbox)
+    inbox_msgs = apply_inbox(state, inbox)
     a = s["avanzado"]
     t = now()
 
     if not s.get("odds_api_key"):
         note(state, "Falta la clave de The Odds API en Ajustes.")
+        telegram(s, "⚠️ Falta la clave de The Odds API en Ajustes. El bot no puede buscar.")
         save(state, password)
         return
 
@@ -404,26 +438,41 @@ def run(password: str, force: bool = False):
             b["status"] = "descartada"
 
     # 2) liquidar partidos terminados
+    report: list[str] = [h(x) for x in inbox_msgs]
+    settled_now: list[tuple[str, dict, str]] = []     # (cartera, apuesta, marcador)
+    owner = {id(b): name for name, Lg in state["ledgers"].items() for b in Lg["bets"]}
     due = {b["sport"] for b in all_bets if b["status"] == "abierta" and pt(b["commence"]) < t - timedelta(hours=2, minutes=30)}
     for sport in due:
         try:
             res = {x["id"]: x for x in odds.scores(sport) if x.get("completed") and x.get("scores")}
         except Exception as e:
             note(state, f"No pude leer resultados de {sport}: {e}")
+            report.append(f"⚠️ No pude leer resultados de {h(sport)}: {h(e)}")
             continue
         for b in all_bets:
             x = res.get(b["event_id"])
             if b["status"] != "abierta" or b["sport"] != sport or not x:
                 continue
             sc = {y["name"]: float(y["score"]) for y in x["scores"]}
-            h, w = sc.get(x["home_team"]), sc.get(x["away_team"])
-            if h is None or w is None:
+            hs, w = sc.get(x["home_team"]), sc.get(x["away_team"])
+            if hs is None or w is None:
                 continue
-            winner = x["home_team"] if h > w else x["away_team"] if w > h else "Draw"
+            winner = x["home_team"] if hs > w else x["away_team"] if w > hs else "Draw"
             settle_bet(b, "ganada" if winner == b["outcome_key"] else "perdida")
-            if b in state["ledgers"]["real"]["bets"]:
-                telegram(s, f"{'✅' if b['status'] == 'ganada' else '❌'} <b>{b['event']}</b>: {b['selection']} "
-                            f"{'ganada' if b['status'] == 'ganada' else 'perdida'} ({b['pnl']:+.2f} €)")
+            settled_now.append((owner.get(id(b), "?"), b, f"{x['home_team']} {int(hs)}-{int(w)} {x['away_team']}"))
+
+    if settled_now:
+        by_match: dict[str, list] = {}
+        for name, b, score in settled_now:
+            by_match.setdefault(score, []).append((name, b))
+        lines = ["🏁 <b>Resultados</b>"]
+        for score, items in by_match.items():
+            lines.append(f"\n<b>{h(score)}</b>")
+            for name, b in sorted(items, key=lambda x: -(x[1]["pnl"] or 0)):
+                who = "💶 REAL" if name == "real" else METHODS.get(name[2:], {}).get("nombre", name)
+                lines.append(f"{'✅' if b['status'] == 'ganada' else '❌'} {h(who)}: {h(b['selection'])} "
+                             f"{b['odds']:.2f} → {eur(b['pnl'])}")
+        report.append("\n".join(lines))
 
     # 3) cuota de cierre (CLV): partidos apostados que empiezan en la próxima hora y cuarto
     soon = {b["sport"] for b in all_bets if b["status"] in ("abierta",) and b.get("close_fair_odds") is None
@@ -434,8 +483,10 @@ def run(password: str, force: bool = False):
     full = force or not last or pt(last) <= t - timedelta(hours=a["horas_entre_busquedas"]) + timedelta(minutes=10)
     sports = list(dict.fromkeys((s["ligas"] if full else []) + list(soon)))
     scan_summary = []
+    clv_now: dict[str, list] = {}
     new_fict: dict[str, list] = {}
     skipped = []
+    real_msgs: list[str] = []
     for sport in sports:
         try:
             if sport in soon and not full:
@@ -449,6 +500,7 @@ def run(password: str, force: bool = False):
                 ref = reference(odds.odds(sport, books, frm, to), a["metodo"])
         except Exception as e:
             note(state, f"No pude leer cuotas de {sport}: {e}")
+            report.append(f"⚠️ No pude leer cuotas de {h(sport)}: {h(e)}")
             continue
         for eid, r in ref.items():
             r["prev"] = (state["snapshots"].get(eid) or {}).get("fair")
@@ -459,6 +511,7 @@ def run(password: str, force: bool = False):
                 p = ref[b["event_id"]]["fair"].get(b["outcome_key"])
                 if p:
                     b["close_fair_odds"] = round(1 / p, 3)
+                    clv_now.setdefault(b["event"], []).append(b)
         if sport not in s["ligas"] or not full:
             continue
         cands = find_value(ref, s, allowed, METHODS["valor"], sport)
@@ -468,19 +521,40 @@ def run(password: str, force: bool = False):
         if s["ficticio"]["activo"]:
             for k, m in METHODS.items():
                 for b in place(state, s, sport, cands if k == "valor" else find_value(ref, s, allowed, m, sport), "f_" + k, m):
-                    new_fict.setdefault(m["nombre"], []).append(b)
+                    new_fict.setdefault(b["event"], []).append((m["nombre"], b))
         if s["real"]["activo"]:
             rm = METHODS.get(s["real"].get("metodo"), METHODS["valor"])
             for b in place(state, s, sport, cands if rm is METHODS["valor"] else find_value(ref, s, allowed, rm, sport), "real", rm):
-                telegram(s, f"💶 <b>APUESTA REAL</b>\n<b>{b['event']}</b> · {local(b['commence'])}\n"
-                            f"Entra en <b>{b['book']}</b> y apuesta a <b>{b['selection']}</b>\n"
-                            f"Cuota: <b>{b['odds']:.2f}</b> (no bajes de {b['min_odds']:.2f})\n"
-                            f"Importe: <b>{b['stake']:.2f} €</b>\n"
-                            f"Después pulsa «La he hecho» en la web.")
-    if new_fict and s["ficticio"].get("avisar"):
-        telegram(s, "🧪 <b>Nuevas apuestas ficticias</b>\n" + "\n".join(
-            f"{n}: {len(v)} ({', '.join(b['selection'] + ' ' + format(b['odds'], '.2f') for b in v[:3])})"
-            for n, v in new_fict.items()))
+                real_msgs.append(f"💶 <b>APUESTA REAL</b>\n<b>{h(b['event'])}</b> · {local(b['commence'])}\n"
+                                 f"Entra en <b>{h(b['book'])}</b> y apuesta a <b>{h(b['selection'])}</b>\n"
+                                 f"Cuota: <b>{b['odds']:.2f}</b> (no bajes de {b['min_odds']:.2f})\n"
+                                 f"Importe: <b>{b['stake']:.2f} €</b>\n"
+                                 f"Después pulsa «La he hecho» en la web.")
+    if clv_now:
+        lines = ["📏 <b>Cuota de cierre tomada</b> (positivo = cogiste mejor precio que el mercado)"]
+        for ev_name, bs in clv_now.items():
+            b0_ = bs[0]
+            lines.append(f"<b>{h(ev_name)}</b>: cierre justo {b0_['close_fair_odds']:.2f}")
+            seen = set()
+            for b in bs:
+                key = (b["selection"], b["odds"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                lines.append(f"  {h(b['selection'])} a {b['odds']:.2f} → CLV {pc(b['odds'] / b['close_fair_odds'] - 1)}")
+        report.append("\n".join(lines))
+    if new_fict and s["ficticio"].get("avisar", True):
+        n_tot = sum(len(v) for v in new_fict.values())
+        lines = [f"🧪 <b>Nuevas apuestas ficticias</b> ({n_tot})"]
+        for ev_name, items in sorted(new_fict.items(), key=lambda kv: kv[1][0][1]["commence"]):
+            lines.append(f"\n<b>{h(ev_name)}</b> · {local(items[0][1]['commence'])}")
+            groups: dict[tuple, list] = {}
+            for mname, b in items:
+                groups.setdefault((b["selection"], b["odds"], b["book"]), []).append((mname, b))
+            for (sel, o, book), ms in groups.items():
+                lines.append(f"• {h(sel)} a {o:.2f} en {h(book)} (valor {pc(ms[0][1]['ev'])})")
+                lines.append("   " + h(", ".join(f"{mn} {b['stake']:.2f}€".replace(".", ",") for mn, b in ms)))
+        report.append("\n".join(lines))
     if full:
         state["last_scan"] = iso(t)
         names = {"soccer_spain_la_liga": "LaLiga", "soccer_epl": "Premier", "soccer_uefa_champs_league": "Champions",
@@ -492,26 +566,44 @@ def run(password: str, force: bool = False):
         state["last_scan_summary"] = {"ts": iso(t), "lines": parts,
                                       "found": sum(c for *_, c in scan_summary)}
         note(state, "Búsqueda: " + " · ".join(parts) if parts else "Búsqueda: sin datos de cuotas")
+        found = sum(c for *_, c in scan_summary)
+        pauses = [x["text"] for x in state.get("log", []) if x["ts"] >= iso(t) and "sin apuestas nuevas" in x["text"]]
+        msg = [f"🔎 <b>Búsqueda terminada</b> · {local(iso(t))}",
+               f"Partidos con valor (método principal): {found}"]
+        msg += [h(x) for x in parts] or ["Sin datos de cuotas"]
+        if pauses:
+            msg.append("⏸ Pausas: " + h("; ".join(p.split(": ", 1)[-1] for p in pauses)))
+        msg.append(f"Consultas gastadas: {odds.used} · quedan {odds.remaining or '?'}")
+        report.insert(0, "\n".join(msg))
     # limpiar fotos viejas
     state["snapshots"] = {k: v for k, v in state["snapshots"].items() if pt(v["commence"]) > t - timedelta(days=2)}
 
     # 5) resumen diario a las 21 h
     loc = t.astimezone(MAD)
     if s.get("resumen_diario") and loc.hour >= 21 and state.get("last_summary") != loc.strftime("%Y-%m-%d"):
-        lines = []
+        rows = []
         names = (["f_" + k for k in METHODS] if s["ficticio"]["activo"] else []) + (["real"] if s["real"]["activo"] else [])
         for name in names:
             bank = ledger_bank(state, s, name)
-            label = "💶 Real" if name == "real" else "🧪 " + METHODS[name[2:]]["nombre"]
-            lines.append(f"{label}: {bank:.2f} € ({bank - bank0(s, name):+.2f} €)")
-        if lines:
-            telegram(s, "<b>Resumen del día</b>\n" + "\n".join(lines))
+            bets = state["ledgers"][name]["bets"]
+            n_done = sum(1 for b in bets if b["status"] in ("ganada", "perdida"))
+            n_open = sum(1 for b in bets if b["status"] == "abierta")
+            label = "💶 REAL" if name == "real" else METHODS[name[2:]]["nombre"]
+            rows.append((bank - bank0(s, name), f"{h(label)}: {bank:.2f} € ({eur(bank - bank0(s, name))}) · "
+                                                 f"{n_done} terminadas, {n_open} pendientes".replace(".", ",")))
+        if rows:
+            rows.sort(key=lambda r: -r[0])
+            report.append("📊 <b>Resumen del día</b> (de más a menos ganancia)\n" + "\n".join(r[1] for r in rows))
         state["last_summary"] = loc.strftime("%Y-%m-%d")
 
     state["credits"] = odds.remaining
     state["updated"] = iso(t)
     note(state, f"Pasada {'completa' if full else 'corta'}: {odds.used} consultas · créditos restantes {odds.remaining}")
     save(state, password)
+    for m_ in real_msgs:                       # las reales, cada una en su mensaje: requieren que actúes
+        telegram(s, m_)
+    if report:
+        telegram_long(s, report)
 
 
 def save(state, password):
@@ -524,4 +616,13 @@ if __name__ == "__main__":
     pw = os.environ.get("APP_PASSWORD", "")
     if not pw:
         sys.exit("Falta el secreto APP_PASSWORD. Créalo desde la web, en el primer arranque.")
-    run(pw, os.environ.get("FORZAR", "").lower() in ("si", "sí", "true", "1"))
+    try:
+        run(pw, os.environ.get("FORZAR", "").lower() in ("si", "sí", "true", "1"))
+    except Exception as e:  # un fallo no debe romper la ejecución de GitHub (eso manda correos)
+        import traceback
+        traceback.print_exc()
+        try:
+            s_ = merge(DEFAULT_SETTINGS, read_enc("settings.enc", pw, {}))
+            telegram(s_, f"⚠️ <b>Error del bot</b>: {h(type(e).__name__)}: {h(e)}\nVolverá a intentarlo en la próxima pasada.")
+        except Exception:
+            pass

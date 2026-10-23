@@ -27,6 +27,7 @@ jobs:
           python-version: "3.12"
       - run: pip install cryptography==43.0.3
       - name: Ejecutar
+        continue-on-error: true
         env:
           APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
           FORZAR: ${{ github.event.inputs.forzar }}
@@ -34,6 +35,7 @@ jobs:
           if [ -z "$APP_PASSWORD" ]; then echo "Aún no hay contraseña: termina la configuración desde la web."; exit 0; fi
           python bot/run.py
       - name: Guardar estado
+        continue-on-error: true
         run: |
           git config user.name "mesa-bot"
           git config user.email "mesa-bot@users.noreply.github.com"
