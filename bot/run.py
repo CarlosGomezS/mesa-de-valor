@@ -36,7 +36,7 @@ ITER = 210_000
 DEFAULT_SETTINGS = {
     "odds_api_key": "", "telegram_token": "", "telegram_chat_id": "",
     "ficticio": {"activo": True, "banca_inicial": 50.0, "avisar": True},
-    "real": {"activo": False, "banca_inicial": 50.0, "metodo": "valor"},
+    "real": {"activo": False, "banca_inicial": 50.0, "metodo": "auto"},
     "ligas": ["soccer_spain_la_liga", "soccer_spain_segunda_division", "soccer_efl_champ",
               "basketball_euroleague", "tennis_all", "handball_germany_bundesliga"],
     "casas": ["williamhill", "sport888", "betway", "betfair_sb_uk", "leovegas"],
@@ -403,6 +403,54 @@ def note(state, text):
     print(text)
 
 
+# ============================ piloto automático ============================
+# Un método solo pasa a dinero real cuando ha demostrado ventaja con estadística:
+#  - al menos MIN_N apuestas terminadas y MIN_N con cuota de cierre,
+#  - CLV medio positivo con t >= MIN_T (probabilidad de que sea suerte < ~2,5 %),
+#  - y rentabilidad positiva.
+# Si después las últimas MIN_N apuestas pierden la ventaja, deja de usarse.
+MIN_N, MIN_T = 100, 2.0
+
+
+def method_stats(bets: list[dict]) -> dict:
+    done = [b for b in bets if b["status"] in ("ganada", "perdida")]
+    staked = sum(b["stake"] for b in done)
+    pnl = sum(b["pnl"] or 0 for b in done)
+    clvs = [b["odds"] / b["close_fair_odds"] - 1 for b in bets
+            if b.get("close_fair_odds") and b["status"] not in ("descartada", "propuesta")]
+    n = len(clvs)
+    mean = sum(clvs) / n if n else 0.0
+    sd = (sum((c - mean) ** 2 for c in clvs) / (n - 1)) ** 0.5 if n > 1 else 0.0
+    t = mean / (sd / n ** 0.5) if n > 1 and sd > 0 else 0.0
+    recent = clvs[-MIN_N:]
+    return {"n": len(done), "n_clv": n, "roi": pnl / staked if staked else 0.0, "pnl": round(pnl, 2),
+            "clv": mean, "t": round(t, 2), "recent_clv": sum(recent) / len(recent) if recent else 0.0}
+
+
+def qualifies(x: dict) -> bool:
+    return x["n"] >= MIN_N and x["n_clv"] >= MIN_N and x["clv"] > 0 and x["t"] >= MIN_T \
+        and x["roi"] > 0 and x["recent_clv"] > 0
+
+
+def autopilot(state: dict) -> tuple[str | None, list[str]]:
+    table = {k: method_stats(state["ledgers"].get("f_" + k, {"bets": []})["bets"]) for k in METHODS if k != "control"}
+    ok = sorted((k for k, x in table.items() if qualifies(x)), key=lambda k: -table[k]["t"])
+    best = ok[0] if ok else None
+    prev = (state.get("auto") or {}).get("best")
+    msgs = []
+    if best != prev:
+        if best:
+            x = table[best]
+            msgs.append(f"🏆 <b>{h(METHODS[best]['nombre'])}</b> ha demostrado ventaja: {x['n']} apuestas, "
+                        f"rentabilidad {pc(x['roi'])}, CLV {pc(x['clv'])} (t = {x['t']:.1f}). "
+                        f"El modo real automático usará este método.")
+        else:
+            msgs.append(f"⛔ <b>{h(METHODS[prev]['nombre'])}</b> ha perdido la ventaja demostrada. "
+                        f"El modo real automático deja de proponer apuestas hasta que otro método la demuestre.")
+    state["auto"] = {"best": best, "qualified": ok, "table": table, "ts": iso(now())}
+    return best, msgs
+
+
 # ============================ presupuesto de consultas ============================
 
 def budget(state: dict, odds: "Odds", t: datetime) -> dict:
@@ -469,6 +517,8 @@ def run(password: str, force: bool = False):
 
     # 2) liquidar partidos terminados
     report: list[str] = [h(x) for x in inbox_msgs]
+    auto_best, auto_msgs = autopilot(state)
+    report += auto_msgs
     settled_now: list[tuple[str, dict, str]] = []     # (cartera, apuesta, marcador)
     owner = {id(b): name for name, Lg in state["ledgers"].items() for b in Lg["bets"]}
     due = {b["sport"] for b in all_bets if b["status"] == "abierta" and pt(b["commence"]) < t - timedelta(hours=2, minutes=30)}
@@ -574,8 +624,9 @@ def run(password: str, force: bool = False):
             for k, m in METHODS.items():
                 for b in place(state, s, sport, cands if k == "valor" else find_value(ref, s, allowed, m, sport), "f_" + k, m):
                     new_fict.setdefault(b["event"], []).append((m["nombre"], b))
-        if s["real"]["activo"]:
-            rm = METHODS.get(s["real"].get("metodo"), METHODS["valor"])
+        rkey = auto_best if s["real"].get("metodo") == "auto" else s["real"].get("metodo")
+        if s["real"]["activo"] and rkey in METHODS:
+            rm = METHODS[rkey]
             for b in place(state, s, sport, cands if rm is METHODS["valor"] else find_value(ref, s, allowed, rm, sport), "real", rm):
                 real_msgs.append(f"💶 <b>APUESTA REAL</b>\n<b>{h(b['event'])}</b> · {local(b['commence'])}\n"
                                  f"Entra en <b>{h(b['book'])}</b> y apuesta a <b>{h(b['selection'])}</b>\n"

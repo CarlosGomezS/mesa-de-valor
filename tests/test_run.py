@@ -70,7 +70,7 @@ class E2E(unittest.TestCase):
         FakeOdds.calls = []
         self.start = datetime.now(UTC) + timedelta(hours=5)
         FakeOdds.events = [ev("e1", self.start, (2.30, 3.30, 3.30), (2.55, 3.10, 3.20))]
-        settings = {"odds_api_key": "k", "real": {"activo": True, "banca_inicial": 50.0},
+        settings = {"odds_api_key": "k", "real": {"activo": True, "banca_inicial": 50.0, "metodo": "valor"},
                     "ligas": ["soccer_spain_la_liga", "soccer_epl"], "casas": ["unibet_fr"]}
         (run.DATA / "settings.enc").write_text(run.encrypt(settings, PW))
 
@@ -216,3 +216,32 @@ class Budget(unittest.TestCase):
         self.assertEqual((b["status"], b["pnl"]), ("nula", 0.0))
         self.assertTrue(any("anulada" in m for m in sent))
         tmp.cleanup()
+
+
+class Autopilot(unittest.TestCase):
+    def bets(self, n, clv, win_every):
+        out = []
+        for i in range(n):
+            won = i % win_every == 0
+            out.append({"status": "ganada" if won else "perdida", "stake": 1.0, "odds": 2.1,
+                        "pnl": 1.1 if won else -1.0, "close_fair_odds": 2.1 / (1 + clv + (0.01 if i % 2 else -0.01))})
+        return out
+
+    def test_needs_proof(self):
+        st_ = {"ledgers": {"f_" + k: {"bets": []} for k in run.METHODS}}
+        best, msgs = run.autopilot(st_)
+        self.assertIsNone(best)
+        self.assertEqual(msgs, [])
+
+    def test_picks_proven_method(self):
+        st_ = {"ledgers": {"f_" + k: {"bets": []} for k in run.METHODS}}
+        st_["ledgers"]["f_consenso"]["bets"] = self.bets(120, 0.04, 2)       # gana y bate el cierre
+        st_["ledgers"]["f_volumen"]["bets"] = self.bets(120, -0.02, 2)       # gana por suerte, CLV negativo
+        st_["ledgers"]["f_control"]["bets"] = self.bets(200, 0.05, 2)        # el control nunca se elige
+        best, msgs = run.autopilot(st_)
+        self.assertEqual(best, "consenso")
+        self.assertTrue(msgs and "demostrado" in msgs[0])
+        st_["ledgers"]["f_consenso"]["bets"] += self.bets(100, -0.03, 3)     # pierde la ventaja
+        best, msgs = run.autopilot(st_)
+        self.assertIsNone(best)
+        self.assertTrue("perdido" in msgs[0])

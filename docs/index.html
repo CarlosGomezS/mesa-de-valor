@@ -32,7 +32,7 @@ header{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1
 .seg button[aria-pressed=true]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.15)}
 .seg button.realb[aria-pressed=true]{color:var(--real)}
 nav{display:flex;gap:2px;margin-bottom:-1px}
-nav button{flex:1;border:0;background:none;font:500 14px var(--f-b);padding:9px 6px;border-bottom:3px solid transparent;color:var(--muted);cursor:pointer}
+nav button{flex:1;border:0;background:none;font:500 14px var(--f-b);padding:9px 2px;border-bottom:3px solid transparent;color:var(--muted);cursor:pointer}
 nav button[aria-current=true]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
 main{padding-block:18px 60px;display:flex;flex-direction:column;gap:16px}
 h1,h2{font:700 22px/1.15 var(--f-d);font-stretch:85%;margin:0;text-wrap:balance}
@@ -182,6 +182,7 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
     <nav>
       <button data-v="inicio" aria-current="true">Inicio</button>
       <button data-v="historial">Historial</button>
+      <button data-v="bonos">Bonos</button>
       <button data-v="ajustes">Ajustes</button>
     </nav>
   </div>
@@ -195,7 +196,7 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
       <div class="card" id="methodBox">
         <label>Método<select id="method"></select></label>
         <p class="small muted" id="methodTxt"></p>
-        <div class="row"><button class="btn sm real" id="useReal">Usar este método en el modo real</button><span class="small" id="useRealMsg"></span></div>
+        <div class="row"><button class="btn sm ghost" id="useReal">Usar este método en el modo real</button><span class="small" id="useRealMsg"></span></div>
       </div>
       <p class="small" id="realMethod" hidden></p>
       <div class="card">
@@ -239,6 +240,42 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
     </div>
   </div>
 
+  <div id="vBonos" hidden>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <h2>Bonos de bienvenida</h2>
+      <div class="card">
+        <p>Es la forma más segura de sacar dinero con poca banca. Cada casa regala un bono al abrir cuenta. Si apuestas a favor en la casa y <b>en contra</b> del mismo resultado en Betfair Exchange, ganas casi lo mismo pase lo que pase.</p>
+        <p class="small muted">Se acaba cuando hayas usado el bono de cada casa. En España siguen permitidos: el Congreso rechazó su prohibición en 2026. Necesitas cuenta en el exchange de betfair.es para apostar en contra.</p>
+      </div>
+      <div class="card">
+        <h3>Cómo se hace</h3>
+        <div class="steps">
+          <div class="step"><div><b>Lee las condiciones del bono</b><p class="small muted">Fíjate en la cuota mínima, si te dan una apuesta gratis o un reembolso, y si hay que apostar el bono varias veces (rollover). Con rollover alto, sáltate esa casa.</p></div></div>
+          <div class="step"><div><b>Apuesta para conseguir el bono</b><p class="small muted">Elige un partido con cuotas parecidas en la casa y en el exchange. Pon «Apuesta con tu dinero» en la calculadora: te dice cuánto apostar en contra. Perderás unos céntimos a propósito.</p></div></div>
+          <div class="step"><div><b>Usa el bono</b><p class="small muted">Cuando te den la apuesta gratis, pon «Apuesta gratis» en la calculadora. Las cuotas altas (4–6) dan más beneficio.</p></div></div>
+          <div class="step"><div><b>Retira y apúntalo aquí abajo</b><p class="small muted">Saca el dinero de las dos cuentas y anota lo que has ganado.</p></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Calculadora</h3>
+        <div class="grid">
+          <label>Tipo<select id="mbType"><option value="q">Apuesta con tu dinero</option><option value="f">Apuesta gratis (el importe no vuelve)</option></select></label>
+          <label>Importe en la casa (€)<input type="number" id="mbStake" value="10" step="1"></label>
+          <label>Cuota en la casa<input type="number" id="mbBack" value="3.00" step="0.01"></label>
+          <label>Cuota en contra (exchange)<input type="number" id="mbLay" value="3.10" step="0.01"></label>
+          <label>Comisión del exchange (%)<input type="number" id="mbCom" value="5" step="0.5"></label>
+        </div>
+        <div id="mbOut"></div>
+      </div>
+      <div class="card">
+        <h3>Mis bonos</h3>
+        <div id="bonList" style="display:flex;flex-direction:column;gap:8px"></div>
+        <p id="bonTotal"></p>
+        <div class="row"><button class="btn sm" id="bonSave">Guardar</button><span class="small" id="bonMsg"></span></div>
+      </div>
+    </div>
+  </div>
+
   <div id="vAjustes" hidden>
     <div style="display:flex;flex-direction:column;gap:16px">
       <h2>Ajustes</h2>
@@ -263,6 +300,7 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
         <label class="chk"><input type="checkbox" id="aROn"> Activado: avisarme de apuestas con dinero real</label>
         <label>Dinero que tienes en las casas (€)<input type="number" id="aRBank" step="1"></label>
         <p class="small muted">Te llega un aviso con la casa, la apuesta, la cuota mínima y el importe. Al hacerla, pulsa «La he hecho» y el bot la sigue y la cobra solo.</p>
+        <label class="chk"><input type="checkbox" id="aRAuto"> Piloto automático (recomendado): usar solo el método que demuestre ventaja con 100 apuestas o más y estadística a favor</label>
         <label class="chk" id="aRAckRow"><input type="checkbox" id="aRAck"> Entiendo que puedo perder ese dinero y que el ficticio debería ir bien antes</label>
       </div>
       <div class="card">
@@ -423,7 +461,7 @@ const PROFILE_TXT={prudente:'Solo apuestas con al menos un 3 % de ventaja, impor
  normal:'Algo más de apuestas (desde 2,5 % de ventaja) e importes un poco mayores. Más rápido, pero con más altibajos.',
  personal:'Has cambiado los ajustes avanzados a mano.'};
 const DEFAULTS={odds_api_key:'',telegram_token:'',telegram_chat_id:'',ficticio:{activo:true,banca_inicial:50,avisar:true},
- real:{activo:false,banca_inicial:50,metodo:'valor'},ligas:LEAGUES_V2.slice(),ligas_version:3,casas:['williamhill','sport888','betway','betfair_sb_uk','leovegas'],resumen_diario:true,perfil:'prudente',
+ real:{activo:false,banca_inicial:50,metodo:'auto'},ligas:LEAGUES_V2.slice(),ligas_version:3,casas:['williamhill','sport888','betway','betfair_sb_uk','leovegas'],resumen_diario:true,perfil:'prudente',
  avanzado:{valor_minimo:0.03,valor_maximo:0.15,fraccion_kelly:0.25,tope:0.04,minima:0.5,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30,horas_vista:30,horas_entre_busquedas:6,metodo:'power'}};
 const merge=(a,b)=>{const o={...a};for(const k in b||{})o[k]=(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k])?merge(a[k],b[k]):b[k];return o};
 
@@ -520,7 +558,7 @@ $('useReal').onclick=async()=>{
   if(!TOKEN){toast('Pon tu token de GitHub en Ajustes');return}
   const s=structuredClone(SETTINGS);s.real.metodo=METHOD;$('useRealMsg').textContent='Guardando…';
   try{await writeFile('docs/data/settings.enc',await enc(s,PW),'método real');SETTINGS=s;
-    $('useRealMsg').innerHTML=`<span class="pos">El modo real usará «${esc(METHODS[METHOD].n)}».</span>`+(s.real.activo?'':' Actívalo en Ajustes cuando quieras.');renderState()}
+    $('useRealMsg').innerHTML=`<span class="pos">El modo real usará «${esc(METHODS[METHOD].n)}» (piloto automático desactivado).</span>`+(s.real.activo?'':' Actívalo en Ajustes cuando quieras.');renderState()}
   catch(e){$('useRealMsg').innerHTML='<span class="neg">'+esc(e.message)+'</span>'}};
 $('comp').addEventListener('click',e=>{const tr=e.target.closest('tr[data-m]');if(!tr)return;METHOD=tr.dataset.m;ls.set('mv.method',METHOD);$('method').value=METHOD;renderState();window.scrollTo({top:0,behavior:'smooth'})});
 
@@ -587,7 +625,8 @@ function byDay(bets,desc,openFirst){
 function renderState(){
   if(!SETTINGS)return;
   const real=MODE==='real';
-  const rm=METHODS[SETTINGS.real.metodo]?SETTINGS.real.metodo:'valor';
+  const AUTO=SETTINGS.real.metodo==='auto',autoBest=STATE?.auto?.best||null,rm=AUTO?autoBest:(METHODS[SETTINGS.real.metodo]?SETTINGS.real.metodo:'valor');
+  const proven=new Set(STATE?.auto?.qualified||[]);
   $('bankLbl').textContent=real?'Banca real':'Banca ficticia · '+METHODS[METHOD].n;
   $('realOff').hidden=!(real&&!SETTINGS.real.activo);
   $('methodBox').hidden=real;$('compBox').hidden=real;
@@ -596,16 +635,19 @@ function renderState(){
      const tag=x.done.length?` · ${x.pnl>=0?'▲':'▼'} ${sEur(x.pnl)}`:' · sin resultados aún';
      return `<option value="${k}">${esc(m.n)}${tag}</option>`}).join('')}
   $('method').value=METHOD;$('methodTxt').textContent=METHODS[METHOD].d;
-  $('useReal').hidden=SETTINGS.real.metodo===METHOD;
-  if(SETTINGS.real.metodo===METHOD)$('useRealMsg').innerHTML='<span class="chip c-r">Es el método del modo real</span>';else if(!$('useRealMsg').textContent.startsWith('Guard'))$('useRealMsg').textContent='';
-  $('realMethod').hidden=!real;$('realMethod').innerHTML=`Método en uso: <b>${esc(METHODS[rm].n)}</b>. Para cambiarlo, elige otro en el modo Ficticio.`;
+  $('useReal').hidden=rm===METHOD;
+  if(rm===METHOD)$('useRealMsg').innerHTML='<span class="chip c-r">Es el método del modo real</span>';else if(!$('useRealMsg').textContent.startsWith('Guard'))$('useRealMsg').textContent='';
+  $('realMethod').hidden=!real;$('realMethod').innerHTML=AUTO?(rm?`Piloto automático: usando <b>${esc(METHODS[rm].n)}</b>, el método que ha demostrado ventaja.`:
+    'Piloto automático: <b>ningún método ha demostrado ventaja todavía</b>, así que no se propone ninguna apuesta real. Te avisaré por Telegram cuando alguno lo consiga.'):
+    `Método en uso: <b>${esc(METHODS[rm].n)}</b> (elegido a mano). Puedes volver al piloto automático en Ajustes.`;
   const L=ledgerOf(ledgerKey());const b0=real?SETTINGS.real.banca_inicial:SETTINGS.ficticio.banca_inicial;const s=stats(L,b0);
   if(!real){const fb=SETTINGS.ficticio.banca_inicial;
-    $('comp').innerHTML='<thead><tr><th>Método</th><th>Banca</th><th>Terminadas</th><th>Rentab.</th><th>CLV</th></tr></thead><tbody>'+
+    $('comp').innerHTML='<thead><tr><th>Método</th><th>Banca</th><th>Terminadas</th><th>Rentab.</th><th>CLV</th><th>Prueba</th></tr></thead><tbody>'+
       Object.entries(METHODS).map(([k,m])=>[k,m,stats(ledgerOf('f_'+k),fb)]).sort((a,b)=>b[2].bank-a[2].bank).map(([k,m,x])=>{
-        return `<tr data-m="${k}" class="${k===METHOD?'sel':''}"><td>${esc(m.n)}${SETTINGS.real.metodo===k?' <span class="chip c-r">real</span>':''}</td>
+        return `<tr data-m="${k}" class="${k===METHOD?'sel':''}"><td>${esc(m.n)}${rm===k?' <span class="chip c-r">real</span>':''}</td>
         <td class="${x.pnl>=0?'pos':'neg'}">${eur(x.bank)}</td><td>${x.done.length}</td><td>${x.staked?sPct(x.pnl/x.staked):'—'}</td>
-        <td class="${x.clv==null?'':x.clv>=0?'pos':'neg'}">${x.clv==null?'—':sPct(x.clv)}</td></tr>`}).join('')+'</tbody>'}
+        <td class="${x.clv==null?'':x.clv>=0?'pos':'neg'}">${x.clv==null?'—':sPct(x.clv)}</td>
+        <td>${k==='control'?'<span class="chip c-n">referencia</span>':proven.has(k)?'<span class="chip c-ok">✔ probado</span>':`<span class="chip c-n">${Math.min(x.done.length,100)}/100</span>`}</td></tr>`}).join('')+'</tbody>'}
   $('bank').textContent=eur(s.bank);$('delta').textContent=sEur(s.pnl);$('delta').className='v '+(s.pnl>=0?'pos':'neg');
   $('sN').textContent=s.done.length;const np=L.filter(b=>b.status==='abierta').length;$('sP').textContent=np?np+' esperando':'';$('sY').textContent=s.staked?sPct(s.pnl/s.staked):'—';$('sY').className='v '+(s.pnl>=0?'pos':'neg');
   $('sC').textContent=s.clv==null?'—':sPct(s.clv);$('sC').className='v '+(s.clv==null?'':s.clv>=0?'pos':'neg');
@@ -637,10 +679,10 @@ document.addEventListener('click',async e=>{
 
 /* ---------- ajustes ---------- */
 function fillSettings(){
-  const s=SETTINGS;
+  const s=SETTINGS;renderBonos();
   $('aProfile').value=s.perfil||'prudente';$('profileTxt').textContent=PROFILE_TXT[$('aProfile').value];
   $('aFOn').checked=s.ficticio.activo;$('aFBank').value=s.ficticio.banca_inicial;$('aFNotify').checked=s.ficticio.avisar;
-  $('aROn').checked=s.real.activo;$('aRBank').value=s.real.banca_inicial;$('aRAck').checked=s.real.activo;
+  $('aROn').checked=s.real.activo;$('aRAuto').checked=s.real.metodo==='auto';$('aRBank').value=s.real.banca_inicial;$('aRAck').checked=s.real.activo;
   $('aLeagues').innerHTML=LEAGUES.map(([k,n])=>`<label class="chk"><input type="checkbox" value="${k}" ${s.ligas.includes(k)?'checked':''}> ${n}</label>`).join('');
   $('aBooks').innerHTML=BOOKS.map(([k,n])=>`<label class="chk"><input type="checkbox" value="${k}" ${s.casas.includes(k)?'checked':''}> ${n}</label>`).join('');
   $('aTg').value=s.telegram_token;$('aChat').value=s.telegram_chat_id;$('aDaily').checked=s.resumen_diario;
@@ -664,7 +706,7 @@ $('aSave').onclick=async()=>{
   if($('aROn').checked&&!$('aRAck').checked){msg.innerHTML='<span class="neg">Para activar el modo real marca la casilla de confirmación.</span>';return}
   s.perfil=$('aProfile').value;
   s.ficticio={activo:$('aFOn').checked,banca_inicial:+$('aFBank').value||50,avisar:$('aFNotify').checked};
-  s.real={activo:$('aROn').checked,banca_inicial:+$('aRBank').value||0,metodo:SETTINGS.real.metodo||'valor'};
+  s.real={activo:$('aROn').checked,banca_inicial:+$('aRBank').value||0,metodo:$('aRAuto').checked?'auto':(SETTINGS.real.metodo==='auto'?'valor':SETTINGS.real.metodo||'valor')};
   s.ligas=[...$('aLeagues').querySelectorAll('input:checked')].map(i=>i.value);
   s.casas=[...$('aBooks').querySelectorAll('input:checked')].map(i=>i.value);
   s.telegram_token=$('aTg').value.trim();s.telegram_chat_id=$('aChat').value.trim();s.resumen_diario=$('aDaily').checked;
@@ -679,10 +721,39 @@ $('aSave').onclick=async()=>{
   catch(e){msg.innerHTML='<span class="neg">'+esc(e.message)+'</span>'}
 };
 
+/* ---------- bonos ---------- */
+function mbCalc(){
+  const t=$('mbType').value,B=+$('mbStake').value,bo=+$('mbBack').value,lo=+$('mbLay').value,c=(+$('mbCom').value||0)/100;
+  if(!(B>0&&bo>1&&lo>1)){$('mbOut').innerHTML='';return}
+  const L=(t==='q'?B*bo:B*(bo-1))/(lo-c),liab=L*(lo-1);
+  const ifBook=B*(bo-1)-liab,ifEx=L*(1-c)-(t==='q'?B:0);
+  $('mbOut').innerHTML=`<div class="stats" style="grid-template-columns:repeat(2,1fr);margin-top:6px">
+    <div><div class="k">Apostar en contra</div><div class="v">${eur(L)}</div></div>
+    <div><div class="k">Necesitas en el exchange</div><div class="v">${eur(liab)}</div></div>
+    <div><div class="k">Si gana en la casa</div><div class="v ${ifBook>=0?'pos':'neg'}">${sEur(ifBook)}</div></div>
+    <div><div class="k">Si gana en el exchange</div><div class="v ${ifEx>=0?'pos':'neg'}">${sEur(ifEx)}</div></div></div>
+    <p class="small muted" style="margin-top:6px">${t==='q'?'Pierdes un poco a propósito para desbloquear el bono. Busca que sea lo menos posible.':'Te quedas con alrededor del '+Math.round(Math.min(ifBook,ifEx)/B*100)+' % del valor del bono.'}</p>`}
+['mbType','mbStake','mbBack','mbLay','mbCom'].forEach(id=>$(id).addEventListener('input',mbCalc));mbCalc();
+const BON_ST=[['pendiente','Pendiente'],['curso','En curso'],['hecho','Hecho'],['no','No compensa']];
+function renderBonos(){
+  const b=SETTINGS.bonos||{};const names=BOOKS.filter(([k])=>SETTINGS.casas.includes(k));
+  $('bonList').innerHTML=(names.length?names:BOOKS.slice(0,5)).map(([k,n])=>{const x=b[k]||{};
+    return `<div class="grid" style="grid-template-columns:1fr 130px 100px;align-items:end"><b class="small">${esc(n.replace(/ \(.*\)/,''))}</b>
+      <select data-bs="${k}" aria-label="Estado ${esc(n)}">${BON_ST.map(([v,l])=>`<option value="${v}" ${x.st===v?'selected':''}>${l}</option>`).join('')}</select>
+      <input type="number" step="0.01" data-bp="${k}" value="${x.pnl??''}" placeholder="€ ganados" aria-label="Ganado ${esc(n)}"></div>`}).join('');
+  const tot=Object.values(b).reduce((a,x)=>a+(+x.pnl||0),0);$('bonTotal').innerHTML=`Ganado con bonos: <b class="${tot>=0?'pos':'neg'}">${sEur(tot)}</b>`;
+}
+$('bonSave').onclick=async()=>{if(!TOKEN){$('bonMsg').innerHTML='<span class="neg">Falta el token de GitHub en Ajustes.</span>';return}
+  const s=structuredClone(SETTINGS);s.bonos={};
+  document.querySelectorAll('[data-bs]').forEach(e=>{const k=e.dataset.bs;s.bonos[k]={st:e.value,pnl:+document.querySelector(`[data-bp="${k}"]`).value||0}});
+  $('bonMsg').textContent='Guardando…';
+  try{await writeFile('docs/data/settings.enc',await enc(s,PW),'bonos');SETTINGS=s;renderBonos();$('bonMsg').innerHTML='<span class="pos">Guardado</span>'}
+  catch(e){$('bonMsg').innerHTML='<span class="neg">'+esc(e.message)+'</span>'}};
+
 /* ---------- navegación ---------- */
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-current',x===b));
-  ['inicio','historial','ajustes'].forEach(v=>$('v'+v[0].toUpperCase()+v.slice(1)).hidden=v!==b.dataset.v);window.scrollTo(0,0)});
+  ['inicio','historial','bonos','ajustes'].forEach(v=>$('v'+v[0].toUpperCase()+v.slice(1)).hidden=v!==b.dataset.v);window.scrollTo(0,0)});
 setMode(MODE);
 boot().catch(e=>{screen('scrLogin');$('loginErr').textContent='No pude cargar los datos: '+e.message});
 setInterval(()=>{if(PW&&!document.hidden)loadState()},5*60*1000);
