@@ -480,6 +480,10 @@ async function login(pw,silent){
   const raw=await dec(f.text,pw);SETTINGS=merge(DEFAULTS,raw);PW=pw;
   const v=ls.get('mv.vault');if(v){try{TOKEN=(await dec(v,pw)).token}catch(e){}}
   screen('scrApp');fillSettings();await loadState();
+  if(raw.auto_v!==1&&TOKEN&&!raw.real?.activo){
+    const s2=structuredClone(SETTINGS);s2.real.metodo='auto';s2.auto_v=1;
+    try{await writeFile('docs/data/settings.enc',await enc(s2,PW),'piloto automático');SETTINGS=s2;fillSettings();renderState()}catch(e){}
+  }
   if(raw.ligas_version!==3&&TOKEN){
     const s2=structuredClone(SETTINGS);s2.ligas=LEAGUES_V2.slice();s2.ligas_version=3;s2.avanzado.horas_entre_busquedas=8;
     try{await writeFile('docs/data/settings.enc',await enc(s2,PW),'ligas recomendadas');SETTINGS=s2;fillSettings();toast('Deportes actualizados: fútbol, baloncesto, tenis y balonmano')}catch(e){}
