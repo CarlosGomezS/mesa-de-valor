@@ -591,6 +591,10 @@ function renderState(){
   $('bankLbl').textContent=real?'Banca real':'Banca ficticia · '+METHODS[METHOD].n;
   $('realOff').hidden=!(real&&!SETTINGS.real.activo);
   $('methodBox').hidden=real;$('compBox').hidden=real;
+  {const fb=SETTINGS.ficticio.banca_inicial;
+   $('method').innerHTML=Object.entries(METHODS).map(([k,m])=>{const x=stats(ledgerOf('f_'+k),fb);
+     const tag=x.done.length?` · ${x.pnl>=0?'▲':'▼'} ${sEur(x.pnl)}`:' · sin resultados aún';
+     return `<option value="${k}">${esc(m.n)}${tag}</option>`}).join('')}
   $('method').value=METHOD;$('methodTxt').textContent=METHODS[METHOD].d;
   $('useReal').hidden=SETTINGS.real.metodo===METHOD;
   if(SETTINGS.real.metodo===METHOD)$('useRealMsg').innerHTML='<span class="chip c-r">Es el método del modo real</span>';else if(!$('useRealMsg').textContent.startsWith('Guard'))$('useRealMsg').textContent='';
