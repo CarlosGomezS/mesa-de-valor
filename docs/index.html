@@ -237,6 +237,20 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
   <div id="vHistorial" hidden>
     <div style="display:flex;flex-direction:column;gap:10px">
       <h2>Historial</h2>
+      <div class="card">
+        <label id="hMethodRow">Método<select id="hMethod"></select></label>
+        <div class="stats">
+          <div><div class="k">Ganancia</div><div class="v" id="hPnl">—</div></div>
+          <div><div class="k">Ganadas</div><div class="v pos" id="hWon">0</div></div>
+          <div><div class="k">Perdidas</div><div class="v neg" id="hLost">0</div></div>
+        </div>
+        <div class="row">
+          <button class="btn sm" id="hTg">Enviar a Telegram</button>
+          <button class="btn sm ghost" id="hDl">Descargar</button>
+          <span class="small" id="hMsg"></span>
+        </div>
+        <p class="small muted">Archivo CSV: se abre con Excel o Google Sheets. Si «Descargar» no hace nada en tu móvil, usa «Enviar a Telegram».</p>
+      </div>
       <div id="hist" style="display:flex;flex-direction:column;gap:8px"></div>
     </div>
   </div>
@@ -515,6 +529,34 @@ async function testOdds(key,out){out.textContent='Comprobando…';
     out.innerHTML=r.ok?`<span class="pos">Correcta · créditos libres: ${esc(r.headers.get('x-requests-remaining')??'?')}</span>`:'<span class="neg">Clave no válida</span>'}
   catch(e){out.innerHTML='<span class="neg">No se pudo conectar</span>'}}
 $('suOddsTest').onclick=()=>testOdds($('suOdds').value.trim(),$('suOddsMsg'));
+/* ---------- exportar historial ---------- */
+function histCSV(){
+  const real=MODE==='real',L=ledgerOf(ledgerKey()).filter(b=>b.status!=='propuesta').slice().sort((a,b)=>new Date(a.commence)-new Date(b.commence));
+  const b0=real?SETTINGS.real.banca_inicial:SETTINGS.ficticio.banca_inicial;let bank=b0;
+  const n=x=>x==null||x===''?'':String(x).replace('.',',');const q=x=>'"'+String(x??'').replace(/"/g,'""')+'"';
+  const rows=[['Fecha','Hora','Partido','Apuesta','Casa','Cuota','Importe (€)','Valor (%)','Cuota justa','Cuota de cierre','CLV (%)','Resultado','Ganancia (€)','Banca (€)']];
+  for(const b of L){const d=new Date(b.commence);if(b.pnl!=null)bank+=b.pnl;
+    rows.push([d.toLocaleDateString('es-ES'),d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}),q(b.event),q(b.selection),q(b.book),
+      n(b.odds.toFixed(2)),n(b.stake.toFixed(2)),n((b.ev*100).toFixed(1)),n((1/b.fair_p).toFixed(2)),b.close_fair_odds?n(b.close_fair_odds.toFixed(2)):'',
+      b.close_fair_odds?n(((b.odds/b.close_fair_odds-1)*100).toFixed(1)):'',{ganada:'Ganada',perdida:'Perdida',nula:'Anulada',abierta:'Pendiente',descartada:'No hecha'}[b.status]||b.status,
+      b.pnl!=null?n(b.pnl.toFixed(2)):'',b.pnl!=null?n(bank.toFixed(2)):''])}
+  const name=(real?'real':METHODS[METHOD].n).normalize('NFD').replace(/[^\w ]/g,'').trim().replace(/ +/g,'-').toLowerCase();
+  return {text:'\ufeff'+rows.map(r=>r.join(';')).join('\r\n'),file:`mesa-de-valor_${name}_${new Date().toISOString().slice(0,10)}.csv`,
+    title:real?'Modo real':METHODS[METHOD].n,count:L.length};
+}
+$('hDl').onclick=()=>{const c=histCSV();if(!c.count){$('hMsg').textContent='Aún no hay apuestas que descargar.';return}
+  try{const u=URL.createObjectURL(new Blob([c.text],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download=c.file;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);
+    $('hMsg').innerHTML='<span class="pos">Descargando '+esc(c.file)+'</span>'}catch(e){$('hMsg').innerHTML='<span class="neg">Tu navegador no permite descargar. Usa «Enviar a Telegram».</span>'}};
+$('hTg').onclick=async()=>{const c=histCSV();if(!c.count){$('hMsg').textContent='Aún no hay apuestas que enviar.';return}
+  if(!SETTINGS.telegram_token||!SETTINGS.telegram_chat_id){$('hMsg').innerHTML='<span class="neg">Configura Telegram en Ajustes.</span>';return}
+  $('hMsg').textContent='Enviando…';
+  try{const fd=new FormData();fd.append('chat_id',SETTINGS.telegram_chat_id);fd.append('caption',`Historial · ${c.title} · ${c.count} apuestas`);
+    fd.append('document',new Blob([c.text],{type:'text/csv'}),c.file);
+    const r=await fetch(`https://api.telegram.org/bot${SETTINGS.telegram_token}/sendDocument`,{method:'POST',body:fd});
+    $('hMsg').innerHTML=r.ok?'<span class="pos">Enviado a tu Telegram</span>':'<span class="neg">Telegram no lo aceptó. Revisa el token en Ajustes.</span>'}
+  catch(e){$('hMsg').innerHTML='<span class="neg">No se pudo enviar: '+esc(e.message)+'</span>'}};
+$('hMethod').onchange=e=>{METHOD=e.target.value;ls.set('mv.method',METHOD);$('hMsg').textContent='';renderState()};
+
 async function tgSend(tok,chat,text){const r=await fetch(`https://api.telegram.org/bot${tok}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chat,text})});return r.ok}
 $('suChatBtn').onclick=async()=>{const tok=$('suTg').value.trim();$('suTgMsg').textContent='Buscando…';
   try{const r=await (await fetch(`https://api.telegram.org/bot${tok}/getUpdates`)).json();
@@ -671,6 +713,9 @@ function renderState(){
     'Mala señal: de media no batimos la cuota de cierre. No pases a dinero real así.';
   const props=L.filter(b=>b.status==='propuesta');$('propBox').hidden=!props.length;$('props').innerHTML=props.map(b=>betCard(b,'prop')).join('');
   const open=L.filter(b=>b.status==='abierta');$('open').innerHTML=open.length?byDay(open,false,true):'<p class="muted small">No hay apuestas en juego. El bot busca solo cada pocas horas y te avisa por Telegram.</p>';
+  $('hMethodRow').hidden=real;$('hMethod').innerHTML=$('method').innerHTML;$('hMethod').value=METHOD;
+  {const HL=L.filter(b=>b.status!=='propuesta'&&b.status!=='descartada');const won=HL.filter(b=>b.status==='ganada').length,lost=HL.filter(b=>b.status==='perdida').length;
+   $('hPnl').textContent=sEur(s.pnl);$('hPnl').className='v '+(s.pnl>=0?'pos':'neg');$('hWon').textContent=won;$('hLost').textContent=lost;}
   $('hist').innerHTML=byDay(L.filter(b=>b.status!=='propuesta'),true,true)||'<p class="muted small">Aún no hay apuestas.</p>';
   $('updated').textContent=STATE?.updated?'Última revisión del bot: '+when(STATE.updated)+(STATE.credits?` · créditos de cuotas: ${STATE.credits}`:''):'El bot aún no ha hecho su primera pasada.';
   showScan(false);
