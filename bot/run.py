@@ -39,10 +39,10 @@ DEFAULT_SETTINGS = {
     "real": {"activo": False, "banca_inicial": 50.0, "metodo": "auto"},
     "ligas": ["soccer_spain_la_liga", "soccer_spain_segunda_division", "soccer_efl_champ",
               "basketball_euroleague", "tennis_all", "handball_germany_bundesliga"],
-    "casas": ["williamhill", "sport888", "betway", "betfair_sb_uk", "leovegas"],
+    "casas": ["winamax_fr", "betfair_sb_uk", "betfair_ex_eu"],
     "resumen_diario": True,
     "avanzado": {"valor_minimo": 0.03, "valor_maximo": 0.15, "fraccion_kelly": 0.25, "tope": 0.04,
-                 "minima": 0.5, "limite_diario": 0.10, "limite_semanal": 0.20, "parar_si_cae": 0.40,
+                 "minima": 0.5, "comision_exchange": 0.05, "limite_diario": 0.10, "limite_semanal": 0.20, "parar_si_cae": 0.40,
                  "max_dia": 6, "max_exposicion": 0.30, "horas_vista": 30, "horas_entre_busquedas": 8,
                  "metodo": "power"},
 }
@@ -302,22 +302,24 @@ def find_value(ref: dict, s: dict, allowed: set, m: dict | None = None, sport: s
         allowed_out = {"draw": {"Draw"}, "home": {r["home"]}, "away": {r["away"]}}.get(m.get("outcome"))
         best = None
         for key, b in r["books"].items():
-            if key == "pinnacle" or key.startswith("betfair_ex") or key == "matchbook" or (allowed and key not in allowed):
+            is_ex = key.startswith("betfair_ex") or key == "matchbook"
+            if key == "pinnacle" or (allowed and key not in allowed) or (is_ex and key not in allowed):
                 continue
+            com = a.get("comision_exchange", 0.05) if is_ex else 0.0
             for name, price in b["prices"].items():
                 p = probs.get(name)
                 if not p:
                     continue
                 if kind == "control":
                     if name == fav and (not best or price > best[4]):
-                        best = (st.ev_back(r["fair"][name], price), key, b["title"], name, price, r["fair"][name])
+                        best = (st.ev_back(r["fair"][name], price, com), key, b["title"], name, price, r["fair"][name])
                     continue
                 if allowed_out and name not in allowed_out:
                     continue
                 if (m.get("max_odds") and price > m["max_odds"]) or (m.get("min_odds") and price < m["min_odds"]):
                     continue
-                ev = st.ev_back(p, price)
-                if kind == "both" and st.ev_back(r["consensus"][name], price) < min_ev:
+                ev = st.ev_back(p, price, com)
+                if kind == "both" and st.ev_back(r["consensus"][name], price, com) < min_ev:
                     continue
                 if kind == "steam":
                     prev = (r.get("prev") or {}).get(name)
@@ -345,11 +347,12 @@ def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict
     for eid, r, ev, key, title, outcome, price, p in cands:
         if any(b["event_id"] == eid and b["status"] != "descartada" for b in bets):
             continue
+        com = a.get("comision_exchange", 0.05) if key.startswith("betfair_ex") or key == "matchbook" else 0.0
         if m.get("stake") == "flat":
             stake = round(max(a["minima"], bank * FLAT_PCT), 2) if bank >= a["minima"] else 0
         else:
             r_ = rules if not m.get("kf") else st.StakeRules(m["kf"], a["tope"], a["minima"], True)
-            stake = st.size_stake(bank, st.kelly_back(p, price), r_)
+            stake = st.size_stake(bank, st.kelly_back(p, price, com), r_)
         if stake <= 0 or exposure(state, name) + stake > a["max_exposicion"] * bank:
             continue
         if risk_block(state, s, name, bank, m):
@@ -357,7 +360,7 @@ def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict
         b = {"id": secrets.token_hex(4), "created": iso(now()), "sport": sport, "event_id": eid,
              "event": f"{r['home']} - {r['away']}", "commence": r["commence"],
              "selection": "Empate" if outcome == "Draw" else outcome, "outcome_key": outcome,
-             "book": title, "book_key": key, "odds": price, "min_odds": round((1 + a["valor_minimo"]) / p, 2),
+             "book": title, "book_key": key, "odds": price, "min_odds": round(1 + ((1 + a["valor_minimo"]) / p - 1) / (1 - com), 2), "com": com,
              "stake": stake, "fair_p": round(p, 4), "ev": round(ev, 4), "close_fair_odds": None,
              "status": "propuesta" if name == "real" else "abierta", "pnl": None, "settled": None,
              "method": next((k for k, v in METHODS.items() if v is m), "valor")}
@@ -379,7 +382,7 @@ def apply_inbox(state, inbox: list[dict]) -> list[str]:
                 b["status"] = "abierta"
                 b["odds"] = float(act.get("odds") or b["odds"])
                 b["stake"] = float(act.get("stake") or b["stake"])
-                b["ev"] = round(st.ev_back(b["fair_p"], b["odds"]), 4)
+                b["ev"] = round(st.ev_back(b["fair_p"], b["odds"], b.get("com", 0.0)), 4)
                 msgs.append(f"📝 Anotada tu apuesta real: {b['event']} · {b['selection']} a {b['odds']:.2f} · {b['stake']:.2f} €")
             elif act["type"] == "no" and b["status"] == "propuesta":
                 b["status"] = "descartada"
@@ -393,7 +396,7 @@ def apply_inbox(state, inbox: list[dict]) -> list[str]:
 
 def settle_bet(b: dict, result: str):
     b["status"] = result
-    b["pnl"] = round(b["stake"] * (b["odds"] - 1), 2) if result == "ganada" else (-b["stake"] if result == "perdida" else 0.0)
+    b["pnl"] = round(b["stake"] * (b["odds"] - 1) * (1 - b.get("com", 0.0)), 2) if result == "ganada" else (-b["stake"] if result == "perdida" else 0.0)
     b["settled"] = iso(now())
 
 

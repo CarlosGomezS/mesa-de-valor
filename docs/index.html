@@ -310,7 +310,7 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
       </div>
       <div class="card">
         <h3>Casas donde tienes cuenta</h3>
-        <p class="small muted">Todas tienen licencia en España. Marca solo aquellas en las que tengas cuenta (o vayas a abrirla). La cuota en la web española puede variar un poco: el aviso te dice la mínima aceptable.</p>
+        <p class="small muted">Todas tienen licencia en España. Marca solo las casas en las que tengas cuenta; las demás quedan aquí para cuando abras cuenta. La cuota en la web española puede variar un poco: el aviso te dice la mínima aceptable.</p>
         <div class="checks" id="aBooks"></div>
       </div>
       <div class="card">
@@ -452,8 +452,14 @@ const LEAGUES=[
  ['tennis_all','🎾 Tenis: todos los torneos ATP y WTA activos'],
  ['handball_germany_bundesliga','🤾 Balonmano: Bundesliga alemana']];
 const LEAGUES_V2=['soccer_spain_la_liga','soccer_spain_segunda_division','soccer_efl_champ','basketball_euroleague','tennis_all','handball_germany_bundesliga'];
-const BOOKS=[['williamhill','William Hill'],['sport888','888sport'],['betway','Betway'],['betfair_sb_uk','Betfair (casa de apuestas)'],['leovegas','LeoVegas'],
- ['betsson','Betsson'],['codere_it','Codere (cuotas de su web italiana)'],['winamax_fr','Winamax (cuotas de su web francesa)']];
+const BOOKS=[
+ ['winamax_fr','Winamax','Cuotas de su web francesa: comprueba la cuota en Winamax España antes de apostar.'],
+ ['betfair_sb_uk','Betfair (casa de apuestas)','Cuotas de su web británica: comprueba la cuota en betfair.es.'],
+ ['betfair_ex_eu','Betfair Exchange','Ya descuenta la comisión. El exchange no limita cuentas que ganan, pero el español tiene menos dinero en juego que el internacional.'],
+ ['bet365','Bet365','La fuente de cuotas no tiene Bet365 (solo sus cuotas de Australia, en planes de pago). No se puede vigilar.',true],
+ ['williamhill','William Hill'],['sport888','888sport'],['betway','Betway'],['leovegas','LeoVegas'],['betsson','Betsson'],
+ ['codere_it','Codere','Cuotas de su web italiana.']];
+const MY_BOOKS=['winamax_fr','betfair_sb_uk','betfair_ex_eu'];
 const PROFILES={
  prudente:{valor_minimo:0.03,fraccion_kelly:0.25,tope:0.04,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30},
  normal:{valor_minimo:0.025,fraccion_kelly:0.33,tope:0.05,limite_diario:0.15,limite_semanal:0.25,parar_si_cae:0.50,max_dia:10,max_exposicion:0.40}};
@@ -461,7 +467,7 @@ const PROFILE_TXT={prudente:'Solo apuestas con al menos un 3 % de ventaja, impor
  normal:'Algo más de apuestas (desde 2,5 % de ventaja) e importes un poco mayores. Más rápido, pero con más altibajos.',
  personal:'Has cambiado los ajustes avanzados a mano.'};
 const DEFAULTS={odds_api_key:'',telegram_token:'',telegram_chat_id:'',ficticio:{activo:true,banca_inicial:50,avisar:true},
- real:{activo:false,banca_inicial:50,metodo:'auto'},ligas:LEAGUES_V2.slice(),ligas_version:3,casas:['williamhill','sport888','betway','betfair_sb_uk','leovegas'],resumen_diario:true,perfil:'prudente',
+ real:{activo:false,banca_inicial:50,metodo:'auto'},ligas:LEAGUES_V2.slice(),ligas_version:3,casas:MY_BOOKS.slice(),casas_v:1,resumen_diario:true,perfil:'prudente',
  avanzado:{valor_minimo:0.03,valor_maximo:0.15,fraccion_kelly:0.25,tope:0.04,minima:0.5,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30,horas_vista:30,horas_entre_busquedas:6,metodo:'power'}};
 const merge=(a,b)=>{const o={...a};for(const k in b||{})o[k]=(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k])?merge(a[k],b[k]):b[k];return o};
 
@@ -480,6 +486,10 @@ async function login(pw,silent){
   const raw=await dec(f.text,pw);SETTINGS=merge(DEFAULTS,raw);PW=pw;
   const v=ls.get('mv.vault');if(v){try{TOKEN=(await dec(v,pw)).token}catch(e){}}
   screen('scrApp');fillSettings();await loadState();
+  if(raw.casas_v!==1&&TOKEN){
+    const s2=structuredClone(SETTINGS);s2.casas=MY_BOOKS.slice();s2.casas_v=1;
+    try{await writeFile('docs/data/settings.enc',await enc(s2,PW),'mis casas');SETTINGS=s2;fillSettings();toast('Casas actualizadas: Winamax, Betfair y Betfair Exchange')}catch(e){}
+  }
   if(raw.auto_v!==1&&TOKEN&&!raw.real?.activo){
     const s2=structuredClone(SETTINGS);s2.real.metodo='auto';s2.auto_v=1;
     try{await writeFile('docs/data/settings.enc',await enc(s2,PW),'piloto automático');SETTINGS=s2;fillSettings();renderState()}catch(e){}
@@ -688,7 +698,8 @@ function fillSettings(){
   $('aFOn').checked=s.ficticio.activo;$('aFBank').value=s.ficticio.banca_inicial;$('aFNotify').checked=s.ficticio.avisar;
   $('aROn').checked=s.real.activo;$('aRAuto').checked=s.real.metodo==='auto';$('aRBank').value=s.real.banca_inicial;$('aRAck').checked=s.real.activo;
   $('aLeagues').innerHTML=LEAGUES.map(([k,n])=>`<label class="chk"><input type="checkbox" value="${k}" ${s.ligas.includes(k)?'checked':''}> ${n}</label>`).join('');
-  $('aBooks').innerHTML=BOOKS.map(([k,n])=>`<label class="chk"><input type="checkbox" value="${k}" ${s.casas.includes(k)?'checked':''}> ${n}</label>`).join('');
+  $('aBooks').innerHTML=BOOKS.map(([k,n,note,off])=>`<label class="chk" style="align-items:flex-start${off?';opacity:.55':''}"><input type="checkbox" value="${k}" ${s.casas.includes(k)&&!off?'checked':''} ${off?'disabled':''}>
+    <span>${esc(n)}${note?`<br><span class="small muted">${esc(note)}</span>`:''}</span></label>`).join('');
   $('aTg').value=s.telegram_token;$('aChat').value=s.telegram_chat_id;$('aDaily').checked=s.resumen_diario;
   $('aOdds').value=s.odds_api_key;$('aTok').value=TOKEN||'';
   document.querySelectorAll('[data-adv]').forEach(i=>{const v=s.avanzado[i.dataset.adv];i.value=i.hasAttribute('data-pct')?+(v*100).toFixed(2):v});
@@ -740,7 +751,7 @@ function mbCalc(){
 ['mbType','mbStake','mbBack','mbLay','mbCom'].forEach(id=>$(id).addEventListener('input',mbCalc));mbCalc();
 const BON_ST=[['pendiente','Pendiente'],['curso','En curso'],['hecho','Hecho'],['no','No compensa']];
 function renderBonos(){
-  const b=SETTINGS.bonos||{};const names=BOOKS.filter(([k])=>SETTINGS.casas.includes(k));
+  const b=SETTINGS.bonos||{};const names=BOOKS.filter(([k])=>(SETTINGS.casas.includes(k)||k==='bet365')&&!k.startsWith('betfair_ex'));
   $('bonList').innerHTML=(names.length?names:BOOKS.slice(0,5)).map(([k,n])=>{const x=b[k]||{};
     return `<div class="grid" style="grid-template-columns:1fr 130px 100px;align-items:end"><b class="small">${esc(n.replace(/ \(.*\)/,''))}</b>
       <select data-bs="${k}" aria-label="Estado ${esc(n)}">${BON_ST.map(([v,l])=>`<option value="${v}" ${x.st===v?'selected':''}>${l}</option>`).join('')}</select>

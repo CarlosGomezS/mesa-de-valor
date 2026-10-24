@@ -245,3 +245,20 @@ class Autopilot(unittest.TestCase):
         best, msgs = run.autopilot(st_)
         self.assertIsNone(best)
         self.assertTrue("perdido" in msgs[0])
+
+
+class Exchange(unittest.TestCase):
+    def test_exchange_only_if_ticked_and_commission(self):
+        s = run.merge(run.DEFAULT_SETTINGS, {})
+        start = datetime.now(UTC) + timedelta(hours=3)
+        e = ev("e1", start, (2.30, 3.30, 3.30), (2.55, 3.10, 3.20))
+        e["bookmakers"][1]["key"], e["bookmakers"][1]["title"] = "betfair_ex_eu", "Betfair Exchange"
+        ref = run.reference([e], "power")
+        self.assertEqual(run.find_value(ref, s, {"winamax_fr"}), [])           # exchange sin marcar: nada
+        c = run.find_value(ref, s, {"betfair_ex_eu"})
+        self.assertEqual(c[0][4], "Betfair Exchange")
+        p = c[0][7]
+        self.assertAlmostEqual(c[0][2], p * 1.55 * 0.95 - (1 - p))           # valor descontando 5 % de comisión
+        b = {"stake": 2.0, "odds": 2.55, "com": 0.05}
+        run.settle_bet(b, "ganada")
+        self.assertAlmostEqual(b["pnl"], round(2 * 1.55 * 0.95, 2))
