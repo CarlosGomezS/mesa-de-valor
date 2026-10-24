@@ -56,9 +56,10 @@ p{margin:0}
 .chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap}
 .c-ok{background:var(--good-soft);color:var(--good)} .c-bad{background:var(--bad-soft);color:var(--bad)} .c-n{background:var(--sunk);color:var(--muted)} .c-w{background:var(--warn-soft);color:var(--warn)} .c-r{background:var(--real-soft);color:var(--real)}
 label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--muted)}
-label.chk{flex-direction:row;align-items:center;gap:8px;font-weight:500;color:var(--ink);font-size:14px}
+label.chk{flex-direction:row;align-items:flex-start;gap:12px;font-weight:500;color:var(--ink);font-size:15px;line-height:1.4}
+label.chk>span{flex:1;min-width:0}
 input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px;width:100%;min-width:0}
-input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+input[type=checkbox]{flex:0 0 20px;width:20px;height:20px;min-width:20px;margin:1px 0 0;padding:0;accent-color:var(--accent)}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -698,7 +699,7 @@ function fillSettings(){
   $('aFOn').checked=s.ficticio.activo;$('aFBank').value=s.ficticio.banca_inicial;$('aFNotify').checked=s.ficticio.avisar;
   $('aROn').checked=s.real.activo;$('aRAuto').checked=s.real.metodo==='auto';$('aRBank').value=s.real.banca_inicial;$('aRAck').checked=s.real.activo;
   $('aLeagues').innerHTML=LEAGUES.map(([k,n])=>`<label class="chk"><input type="checkbox" value="${k}" ${s.ligas.includes(k)?'checked':''}> ${n}</label>`).join('');
-  $('aBooks').innerHTML=BOOKS.map(([k,n,note,off])=>`<label class="chk" style="align-items:flex-start${off?';opacity:.55':''}"><input type="checkbox" value="${k}" ${s.casas.includes(k)&&!off?'checked':''} ${off?'disabled':''}>
+  $('aBooks').innerHTML=BOOKS.map(([k,n,note,off])=>`<label class="chk"${off?' style="opacity:.55"':''}><input type="checkbox" value="${k}" ${s.casas.includes(k)&&!off?'checked':''} ${off?'disabled':''}>
     <span>${esc(n)}${note?`<br><span class="small muted">${esc(note)}</span>`:''}</span></label>`).join('');
   $('aTg').value=s.telegram_token;$('aChat').value=s.telegram_chat_id;$('aDaily').checked=s.resumen_diario;
   $('aOdds').value=s.odds_api_key;$('aTok').value=TOKEN||'';
