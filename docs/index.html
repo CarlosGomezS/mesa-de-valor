@@ -93,6 +93,19 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
 .bm{display:flex;flex-direction:column;min-width:0}
 .bm b{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bd{padding:0 14px 10px 66px}
+.flabel{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.mpick{position:relative}
+.mp-btn,.mp-list button{display:flex;align-items:center;gap:10px;width:100%;font:inherit;color:var(--ink);text-align:left;cursor:pointer}
+.mp-btn{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.mp-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.mp-v{font:600 14px var(--f-m);font-variant-numeric:tabular-nums;white-space:nowrap}
+.mp-v.muted{font:400 12px var(--f-b);color:var(--muted)}
+.mp-ar{color:var(--muted)}
+.mp-list{position:absolute;z-index:8;left:0;right:0;top:calc(100% + 4px);max-height:62vh;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.mp-list button{background:none;border:0;border-bottom:1px solid var(--line);padding:11px 12px}
+.mp-list button:last-child{border-bottom:0}
+.mp-list button.sel{background:var(--accent-soft)}
+.mp-i{font:600 12px var(--f-m);color:var(--muted);width:18px;text-align:right}
 .log{font:12px/1.6 var(--f-m);color:var(--muted);max-height:220px;overflow:auto}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;z-index:20;max-width:90vw}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -195,7 +208,7 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
       <div id="realOff" class="note" hidden>El modo real está apagado. Actívalo en <b>Ajustes</b> cuando el ficticio lleve un tiempo funcionando bien.</div>
       <div id="stopNote" class="note bad" hidden></div>
       <div class="card" id="methodBox">
-        <label>Método<select id="method"></select></label>
+        <div class="flabel">Método</div><select id="method" hidden></select><div class="mpick" data-for="method"></div>
         <p class="small muted" id="methodTxt"></p>
         <div class="row"><button class="btn sm ghost" id="useReal">Usar este método en el modo real</button><span class="small" id="useRealMsg"></span></div>
       </div>
@@ -238,7 +251,7 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
     <div style="display:flex;flex-direction:column;gap:10px">
       <h2>Historial</h2>
       <div class="card">
-        <label id="hMethodRow">Método<select id="hMethod"></select></label>
+        <div id="hMethodRow"><div class="flabel">Método</div><select id="hMethod" hidden></select><div class="mpick" data-for="hMethod"></div></div>
         <div class="stats">
           <div><div class="k">Ganancia</div><div class="v" id="hPnl">—</div></div>
           <div><div class="k">Ganadas</div><div class="v pos" id="hWon">0</div></div>
@@ -619,6 +632,25 @@ $('useReal').onclick=async()=>{
   catch(e){$('useRealMsg').innerHTML='<span class="neg">'+esc(e.message)+'</span>'}};
 $('comp').addEventListener('click',e=>{const tr=e.target.closest('tr[data-m]');if(!tr)return;METHOD=tr.dataset.m;ls.set('mv.method',METHOD);$('method').value=METHOD;renderState();window.scrollTo({top:0,behavior:'smooth'})});
 
+/* ---------- desplegable de métodos con colores ---------- */
+let MDATA=[];
+const pnlTag=d=>d.done?`<span class="mp-v ${d.pnl>0?'pos':d.pnl<0?'neg':''}">${d.pnl>0?'▲ ':d.pnl<0?'▼ ':''}${sEur(d.pnl)}</span>`:'<span class="mp-v muted">sin resultados</span>';
+function drawPicker(el){
+  const cur=MDATA.find(d=>d.k===METHOD)||MDATA[0];if(!cur)return;const open=el.classList.contains('open');
+  el.innerHTML=`<button type="button" class="mp-btn" aria-haspopup="listbox" aria-expanded="${open}"><span class="mp-n">${esc(cur.n)}</span>${pnlTag(cur)}<span class="mp-ar">▾</span></button>
+    <div class="mp-list" role="listbox" ${open?'':'hidden'}>${MDATA.map((d,i)=>`<button type="button" role="option" data-k="${d.k}" class="${d.k===METHOD?'sel':''}" aria-selected="${d.k===METHOD}">
+      <span class="mp-i">${i+1}</span><span class="mp-n">${esc(d.n)}</span>${pnlTag(d)}</button>`).join('')}</div>`;
+}
+document.addEventListener('click',e=>{
+  const pick=e.target.closest('.mpick');
+  document.querySelectorAll('.mpick.open').forEach(p=>{if(p!==pick){p.classList.remove('open');drawPicker(p)}});
+  if(!pick)return;
+  const opt=e.target.closest('[data-k]');
+  if(opt){pick.classList.remove('open');const sel=$(pick.dataset.for);sel.value=opt.dataset.k;sel.dispatchEvent(new Event('change'));return}
+  if(e.target.closest('.mp-btn')){pick.classList.toggle('open');drawPicker(pick)}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.mpick.open').forEach(p=>{p.classList.remove('open');drawPicker(p)})});
+
 /* ---------- estado ---------- */
 let MODE=ls.get('mv.mode')||'ficticio';
 function setMode(m){MODE=m;ls.set('mv.mode',m);$('mFict').setAttribute('aria-pressed',m==='ficticio');$('mReal').setAttribute('aria-pressed',m==='real');renderState()}
@@ -688,9 +720,10 @@ function renderState(){
   $('realOff').hidden=!(real&&!SETTINGS.real.activo);
   $('methodBox').hidden=real;$('compBox').hidden=real;
   {const fb=SETTINGS.ficticio.banca_inicial;
-   $('method').innerHTML=Object.entries(METHODS).map(([k,m])=>{const x=stats(ledgerOf('f_'+k),fb);
-     const tag=x.done.length?` · ${x.pnl>=0?'▲':'▼'} ${sEur(x.pnl)}`:' · sin resultados aún';
-     return `<option value="${k}">${esc(m.n)}${tag}</option>`}).join('')}
+   MDATA=Object.entries(METHODS).map(([k,m])=>{const x=stats(ledgerOf('f_'+k),fb);return {k,n:m.n,pnl:x.pnl,done:x.done.length}})
+     .sort((a,b)=>(b.done?b.pnl:-1e-9)-(a.done?a.pnl:-1e-9)||b.done-a.done);
+   $('method').innerHTML=MDATA.map(d=>`<option value="${d.k}">${esc(d.n)}</option>`).join('');
+   document.querySelectorAll('.mpick').forEach(drawPicker)}
   $('method').value=METHOD;$('methodTxt').textContent=METHODS[METHOD].d;
   $('useReal').hidden=rm===METHOD;
   if(rm===METHOD)$('useRealMsg').innerHTML='<span class="chip c-r">Es el método del modo real</span>';else if(!$('useRealMsg').textContent.startsWith('Guard'))$('useRealMsg').textContent='';
@@ -713,7 +746,7 @@ function renderState(){
     'Mala señal: de media no batimos la cuota de cierre. No pases a dinero real así.';
   const props=L.filter(b=>b.status==='propuesta');$('propBox').hidden=!props.length;$('props').innerHTML=props.map(b=>betCard(b,'prop')).join('');
   const open=L.filter(b=>b.status==='abierta');$('open').innerHTML=open.length?byDay(open,false,true):'<p class="muted small">No hay apuestas en juego. El bot busca solo cada pocas horas y te avisa por Telegram.</p>';
-  $('hMethodRow').hidden=real;$('hMethod').innerHTML=$('method').innerHTML;$('hMethod').value=METHOD;
+  $('hMethodRow').hidden=real;$('hMethod').innerHTML=$('method').innerHTML;$('hMethod').value=METHOD;document.querySelectorAll('.mpick').forEach(drawPicker);
   {const HL=L.filter(b=>b.status!=='propuesta'&&b.status!=='descartada');const won=HL.filter(b=>b.status==='ganada').length,lost=HL.filter(b=>b.status==='perdida').length;
    $('hPnl').textContent=sEur(s.pnl);$('hPnl').className='v '+(s.pnl>=0?'pos':'neg');$('hWon').textContent=won;$('hLost').textContent=lost;}
   $('hist').innerHTML=byDay(L.filter(b=>b.status!=='propuesta'),true,true)||'<p class="muted small">Aún no hay apuestas.</p>';
