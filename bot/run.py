@@ -514,12 +514,14 @@ def run(password: str, force: bool = False):
     all_bets = [b for L in state["ledgers"].values() for b in L["bets"]]
 
     # 1) propuestas reales no confirmadas antes del inicio -> descartadas
+    expired: list[str] = []
     for b in state["ledgers"]["real"]["bets"]:
         if b["status"] == "propuesta" and pt(b["commence"]) < t:
             b["status"] = "descartada"
+            expired.append(f"⌛ Apuesta real no confirmada, ya empezó el partido: {h(b['event'])} · {h(b['selection'])}")
 
     # 2) liquidar partidos terminados
-    report: list[str] = [h(x) for x in inbox_msgs]
+    report: list[str] = [h(x) for x in inbox_msgs] + expired
     auto_best, auto_msgs = autopilot(state)
     report += auto_msgs
     settled_now: list[tuple[str, dict, str]] = []     # (cartera, apuesta, marcador)
@@ -564,8 +566,14 @@ def run(password: str, force: bool = False):
         report.append("\n".join(lines))
 
     # 3) cuota de cierre (CLV): partidos apostados que empiezan en la próxima hora y cuarto
-    soon = {b["sport"] for b in all_bets if b["status"] in ("abierta",) and b.get("close_fair_odds") is None
-            and t < pt(b["commence"]) <= t + timedelta(minutes=75)}
+    # GitHub no garantiza ejecutar cada hora, así que la cuota de cierre se toma en cualquier pasada
+    # de las 3 h previas al partido y se va actualizando (como mucho cada 50 min): vale la última antes de empezar.
+    def needs_close(b):
+        if b["status"] != "abierta" or not (t < pt(b["commence"]) <= t + timedelta(hours=3)):
+            return False
+        return not b.get("close_ts") or pt(b["close_ts"]) <= t - timedelta(minutes=50)
+    soon = {b["sport"] for b in all_bets if needs_close(b)}
+    close_updates = 0
 
     # 4) búsqueda completa cada X horas (o si la pides desde la web)
     last = state.get("last_scan")
@@ -595,7 +603,7 @@ def run(password: str, force: bool = False):
             if sport in soon and not full:
                 if not can_spend(state, odds):
                     continue
-                ref = reference(odds.odds(sport, books, t, t + timedelta(minutes=90)), a["metodo"])
+                ref = reference(odds.odds(sport, books, t, t + timedelta(hours=3, minutes=10)), a["metodo"])
             else:
                 frm, to = t, t + timedelta(hours=a["horas_vista"])
                 if odds.events_count(sport, frm, to) == 0:   # gratis: si no hay partidos, no gastamos créditos
@@ -611,12 +619,16 @@ def run(password: str, force: bool = False):
             r["prev"] = (state["snapshots"].get(eid) or {}).get("fair")
             state["snapshots"][eid] = {"fair": r["fair"], "ts": iso(t), "commence": r["commence"]}
         for b in all_bets:
-            if b["sport"] == sport and b.get("close_fair_odds") is None and b["event_id"] in ref \
-                    and t < pt(b["commence"]) <= t + timedelta(minutes=75) and b["status"] == "abierta":
+            if b["sport"] == sport and b["event_id"] in ref and needs_close(b):
                 p = ref[b["event_id"]]["fair"].get(b["outcome_key"])
                 if p:
+                    first = b.get("close_fair_odds") is None
+                    close_updates += 1
                     b["close_fair_odds"] = round(1 / p, 3)
-                    clv_now.setdefault(b["event"], []).append(b)
+                    b["close_ts"] = iso(t)
+                    b["close_min"] = int((pt(b["commence"]) - t).total_seconds() // 60)
+                    if first:
+                        clv_now.setdefault(b["event"], []).append(b)
         if sport not in leagues or not full:
             continue
         cands = find_value(ref, s, allowed, METHODS["valor"], sport)
@@ -705,6 +717,11 @@ def run(password: str, force: bool = False):
 
     state["credits"] = odds.remaining
     state["updated"] = iso(t)
+    idle = (not full and not settled_now and not close_updates and not inbox_msgs and not report
+            and not real_msgs and odds.used == 0)
+    if idle:          # nada nuevo: no se guarda, así no se publica la web cada 10 minutos
+        print("Pasada sin cambios")
+        return
     note(state, f"Pasada {'completa' if full else 'corta'}: {odds.used} consultas · créditos restantes {odds.remaining}")
     save(state, password)
     for m_ in real_msgs:                       # las reales, cada una en su mensaje: requieren que actúes

@@ -2,7 +2,9 @@ name: Mesa de Valor
 
 on:
   schedule:
-    - cron: "41 * * * *"   # cada hora; la búsqueda completa solo cada X horas (Ajustes)
+    # GitHub retrasa o salta muchas ejecuciones programadas; pedirlo cada 10 min hace que en la
+    # práctica pase cada 20-60 min. Las pasadas sin nada que hacer no gastan consultas de cuotas.
+    - cron: "3,13,23,33,43,53 * * * *"
   workflow_dispatch:
     inputs:
       forzar:
