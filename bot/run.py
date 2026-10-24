@@ -120,6 +120,10 @@ def decrypt_bytes(blob: bytes, password: str) -> bytes:
     return AESGCM(_key(password, salt)).decrypt(iv, blob[31:], None)
 
 
+LAB_SECONDS = 90        # tiempo de laboratorio en cada pasada (GitHub la ejecuta cada 20-60 min)
+LAB_MAX_GENS = 30
+
+
 def lab_path() -> Path:
     """Fuera de docs/ para que no se publique; GitHub lo guarda en la rama lab-data."""
     return ROOT / "lab.enc" if DATA == ROOT / "docs" / "data" else DATA / "lab.enc"
@@ -804,17 +808,22 @@ def run(password: str, force: bool = False):
         except Exception as e:
             print("Laboratorio: sin resultados de", sport, e)
         lab_scores_today[sport] = True
-    # ---- laboratorio: una generación al día; nunca deja de aprender
+    # ---- laboratorio: en CADA pasada prueba métodos nuevos durante un rato; no para nunca
     st_lab = state.setdefault("lab", {})
-    if st_lab.get("last_day") != today and labdata["rows"]:
+    if labdata["rows"]:
+        import time as _time
         labm.trim(labdata)
         leagues_seen = sorted({e[0] for e in labdata["events"].values()})
-        labm.evolve(st_lab, labdata, leagues_seen)
+        t_lab, gens = _time.monotonic(), 0
+        while gens == 0 or (_time.monotonic() - t_lab < LAB_SECONDS and gens < LAB_MAX_GENS):
+            labm.evolve(st_lab, labdata, leagues_seen)
+            gens += 1
         live = {p["id"]: method_stats(state["ledgers"].get("f_lab_" + p["id"], {"bets": []})["bets"])
                 for p in st_lab.get("promoted", []) if not p.get("retired")}
         for kind, msg in labm.review(st_lab, live):
             report.append(msg)
-        st_lab["last_day"] = today
+        st_lab["last_day"] = t.astimezone(MAD).strftime("%d/%m %H:%M")
+        print(f"Laboratorio: {gens} generaciones en {_time.monotonic() - t_lab:.0f} s · {st_lab.get('tried', 0)} métodos probados en total")
         refresh_methods(state)
         for k in ALL:
             L.setdefault("f_" + k, {"bets": []})

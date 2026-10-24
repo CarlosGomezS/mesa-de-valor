@@ -285,7 +285,7 @@ class LabFlow(unittest.TestCase):
         lab = labm.unpack(run.decrypt_bytes((run.DATA / "lab.enc").read_bytes(), PW))
         self.assertEqual(len(lab["rows"]), 3)                  # 3 resultados x 1 casa
         st = run.decrypt((run.DATA / "state.enc").read_text(), PW)
-        self.assertEqual(st["lab"]["gen"], 1)
+        self.assertGreaterEqual(st["lab"]["gen"], 1)
         self.assertGreaterEqual(st["lab_summary"]["rows"], 3)
 
         # forzamos una propuesta y la aprobamos desde la web

@@ -11,8 +11,8 @@ Cómo funciona
    rango de cuotas, deporte, tipo de resultado, horas antes del partido, movimiento de Pinnacle, importe.
 4. Los pone a prueba con todo lo observado, separando el pasado (entrenamiento) de lo más reciente
    (validación), para no premiar métodos que solo funcionaron por casualidad.
-5. Evoluciona. Cada día conserva los mejores, los cruza y los muta, y prueba ideas nuevas al azar.
-   No para nunca: cada día hay más datos y la población se vuelve a examinar desde cero.
+5. Evoluciona. En cada pasada del bot conserva los mejores, los cruza y los muta, y prueba ideas nuevas
+   al azar. No para nunca: siempre hay datos nuevos y la población se vuelve a examinar desde cero.
 6. Propone. Si un método supera la validación, te pide aprobación para pasarlo a la cartera ficticia;
    si es excepcional, lo pasa solo y te avisa. Si un método promovido deja de funcionar, se retira.
 """

@@ -280,7 +280,7 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
     <div style="display:flex;flex-direction:column;gap:16px">
       <h2>Laboratorio</h2>
       <div class="card">
-        <p>El bot inventa métodos nuevos, los prueba con todo lo que ha visto y se queda con los que ganan. Aprende cada día y no se detiene nunca: cuantos más partidos observa, mejor afina.</p>
+        <p>El bot inventa métodos nuevos, los prueba con todo lo que ha visto y se queda con los que ganan. No se detiene nunca: en cada pasada prueba decenas de métodos más, y cuantos más partidos observa, mejor afina.</p>
         <div class="stats" id="labStats"></div>
         <p class="small muted" id="labStatus"></p>
       </div>
@@ -725,7 +725,7 @@ function renderLab(){
   $('labStats').innerHTML=`<div><div class="k">Datos</div><div class="v">${L_.rows.toLocaleString('es-ES')}</div></div>
     <div><div class="k">Con resultado</div><div class="v">${L_.resolved.toLocaleString('es-ES')}</div></div>
     <div><div class="k">Probados</div><div class="v">${L_.tried.toLocaleString('es-ES')}</div></div>`;
-  $('labStatus').textContent=`Generación ${L_.gen}${L_.last?' · última evolución: '+L_.last:''}. `+(L_.resolved<300?'Aún hay pocos partidos terminados: las primeras propuestas suelen tardar unas semanas.':'Evoluciona una vez al día.');
+  $('labStatus').textContent=`Generación ${L_.gen}${L_.last?' · última: '+L_.last:''}. `+'Prueba métodos nuevos sin parar, en cada pasada del bot. '+(L_.resolved<300?'Aún hay pocos partidos terminados: las primeras propuestas suelen tardar unas semanas.':'');
   $('labPendBox').hidden=!(L_.pending||[]).length;$('labPend').innerHTML=(L_.pending||[]).map(p=>labCard(p,'pend')).join('');
   $('labProm').innerHTML=(L_.promoted||[]).length?L_.promoted.slice().reverse().map(p=>labCard(p,'prom')).join(''):'<p class="small muted">Todavía ninguno. Cuando un método supere la prueba, te lo propondré aquí y por Telegram.</p>';
   $('labTop').innerHTML=(L_.top||[]).map(p=>labCard(p,'top')).join('')||'<p class="small muted">Sin métodos todavía.</p>';
