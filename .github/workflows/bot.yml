@@ -21,13 +21,17 @@ concurrency:
 jobs:
   pasada:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install cryptography==43.0.3
+      - name: Recuperar memoria del laboratorio
+        continue-on-error: true
+        run: |
+          if git fetch -q --depth=1 origin lab-data 2>/dev/null; then git show FETCH_HEAD:lab.enc > lab.enc; else echo "El laboratorio aún no tiene memoria"; fi
       - name: Ejecutar
         continue-on-error: true
         env:
@@ -45,3 +49,14 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "estado"
           for i in 1 2 3; do git pull --rebase -X theirs && git push && break; sleep 5; done
+      - name: Guardar memoria del laboratorio
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -s lab.enc ] || exit 0
+          if git fetch -q --depth=1 origin lab-data 2>/dev/null && git show FETCH_HEAD:lab.enc | cmp -s - lab.enc; then echo "Sin cambios"; exit 0; fi
+          rm -rf "$RUNNER_TEMP/lab" && mkdir "$RUNNER_TEMP/lab" && cp lab.enc "$RUNNER_TEMP/lab/" && cd "$RUNNER_TEMP/lab"
+          git init -q -b lab-data && git add lab.enc
+          git -c user.name=mesa-bot -c user.email=mesa-bot@users.noreply.github.com commit -qm "memoria del laboratorio"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" lab-data

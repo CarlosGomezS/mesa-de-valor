@@ -106,6 +106,13 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
 .mp-list button:last-child{border-bottom:0}
 .mp-list button.sel{background:var(--accent-soft)}
 .mp-i{font:600 12px var(--f-m);color:var(--muted);width:18px;text-align:right}
+.stats>div{min-width:0}
+#labStats .k{letter-spacing:.03em}
+.labm{border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--surface)}
+.labm .hd{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.labm .ds{font-size:13px;color:var(--muted)}
+.labm .nums{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:13px;font-variant-numeric:tabular-nums}
+.labm.pend{border-color:var(--warn);background:var(--warn-soft)}
 .log{font:12px/1.6 var(--f-m);color:var(--muted);max-height:220px;overflow:auto}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;z-index:20;max-width:90vw}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -196,6 +203,7 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
     <nav>
       <button data-v="inicio" aria-current="true">Inicio</button>
       <button data-v="historial">Historial</button>
+      <button data-v="lab">Lab</button>
       <button data-v="bonos">Bonos</button>
       <button data-v="ajustes">Ajustes</button>
     </nav>
@@ -265,6 +273,39 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
         <p class="small muted">Archivo CSV: se abre con Excel o Google Sheets. Si «Descargar» no hace nada en tu móvil, usa «Enviar a Telegram».</p>
       </div>
       <div id="hist" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+  </div>
+
+  <div id="vLab" hidden>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <h2>Laboratorio</h2>
+      <div class="card">
+        <p>El bot inventa métodos nuevos, los prueba con todo lo que ha visto y se queda con los que ganan. Aprende cada día y no se detiene nunca: cuantos más partidos observa, mejor afina.</p>
+        <div class="stats" id="labStats"></div>
+        <p class="small muted" id="labStatus"></p>
+      </div>
+      <div id="labPendBox" hidden style="display:flex;flex-direction:column;gap:10px">
+        <h3>Esperan tu aprobación</h3>
+        <div id="labPend" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+      <div class="card">
+        <h3>En la cartera ficticia</h3>
+        <div id="labProm"></div>
+      </div>
+      <details class="card" open>
+        <summary><b>Mejores métodos en prueba</b></summary>
+        <p class="small muted">«Pasado» son los partidos más antiguos; «Reciente», los últimos. Un método solo se propone si gana en los dos por separado, para descartar la suerte.</p>
+        <div id="labTop" style="display:flex;flex-direction:column;gap:8px"></div>
+      </details>
+      <details class="card">
+        <summary><b>Cómo decide</b></summary>
+        <div class="small" style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+          <p><b>Te lo propone</b> cuando gana tanto en el pasado como en lo reciente, con al menos 150 apuestas en cada parte, el peor resultado probable por encima de 0 y la cuota de cierre a favor.</p>
+          <p><b>Pasa solo a ficticio</b> si es excepcional: 400 apuestas recientes o más, el peor resultado probable por encima del +3 % y una cuota de cierre batida con mucha seguridad estadística.</p>
+          <p><b>Se retira</b> si, ya en la cartera ficticia, tras 100 apuestas pierde la cuota de cierre o cae por debajo del −5 %.</p>
+          <p>Del ficticio al dinero real decide el piloto automático, con su propia prueba de 100 apuestas.</p>
+        </div>
+      </details>
     </div>
   </div>
 
@@ -658,8 +699,51 @@ $('mFict').onclick=()=>setMode('ficticio');$('mReal').onclick=()=>setMode('real'
 async function loadState(){
   const f=await readFile('docs/data/state.enc');
   if(f){try{STATE=await dec(f.text,PW)}catch(e){toast('No pude descifrar el estado: ¿cambiaste la clave?')}}
-  renderState();
+  syncLabMethods();renderState();renderLab();
 }
+function syncLabMethods(){
+  const ls_=STATE?.lab_summary;if(!ls_)return;
+  for(const p of ls_.promoted||[]){const k='lab_'+p.id;
+    METHODS[k]={n:`Lab #${p.id}${p.retired?' (retirado)':''}`,d:`Método creado por el laboratorio (${p.how||''}, desde ${p.since}). ${p.desc}`}}
+}
+const pc1=x=>(x>=0?'+':'')+(x*100).toLocaleString('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1})+' %';
+function labCard(p,kind){
+  const t=p.m?.train||{},v=p.m?.val||{};const col=x=>x>0?'pos':x<0?'neg':'';
+  const nums=v.n!=null?`<div class="nums"><span>Pasado: <b>${t.n||0}</b> apuestas, <b class="${col(t.roi)}">${pc1(t.roi||0)}</b></span><span>Reciente: <b>${v.n||0}</b> apuestas, <b class="${col(v.roi)}">${pc1(v.roi||0)}</b></span>
+    <span>Peor probable (reciente): <b class="${col(v.lb)}">${v.n?pc1(v.lb):'—'}</b></span><span>CLV reciente: <b class="${col(v.clv)}">${v.n_clv?pc1(v.clv):'—'}</b></span></div>`:'';
+  let tail='';
+  if(kind==='pend')tail=`<div class="row"><button class="btn sm" data-labok="${p.id}">Aprobar: pasar a ficticio</button><button class="btn sm ghost" data-labno="${p.id}">Rechazar</button></div>`;
+  if(kind==='prom'){const k='lab_'+p.id,x=stats(ledgerOf('f_'+k),SETTINGS.ficticio.banca_inicial);
+    tail=`<div class="small">${p.retired?`<span class="chip c-n">Retirado el ${esc(p.retired)}</span>`:'<span class="chip c-ok">Apostando en ficticio</span>'} · ${x.done.length} apuestas terminadas · <b class="${col(x.pnl)}">${sEur(x.pnl)}</b>
+      ${p.retired?'':` · <a href="#" data-labsee="${k}">Ver en Inicio</a>`}</div>`}
+  return `<div class="labm ${kind==='pend'?'pend':''}"><div class="hd"><b>Lab #${esc(p.id)}</b>${kind==='top'&&p.born?`<span class="small muted">gen. ${p.born}</span>`:''}</div>
+    <div class="ds">${esc(p.desc)}</div>${nums}${tail}</div>`;
+}
+function renderLab(){
+  const L_=STATE?.lab_summary;
+  if(!L_){$('labStats').innerHTML='';$('labStatus').textContent='El laboratorio empieza a observar en la próxima búsqueda del bot.';$('labTop').innerHTML='';$('labProm').innerHTML='<p class="small muted">Todavía ninguno.</p>';$('labPendBox').hidden=true;return}
+  $('labStats').innerHTML=`<div><div class="k">Datos</div><div class="v">${L_.rows.toLocaleString('es-ES')}</div></div>
+    <div><div class="k">Con resultado</div><div class="v">${L_.resolved.toLocaleString('es-ES')}</div></div>
+    <div><div class="k">Probados</div><div class="v">${L_.tried.toLocaleString('es-ES')}</div></div>`;
+  $('labStatus').textContent=`Generación ${L_.gen}${L_.last?' · última evolución: '+L_.last:''}. `+(L_.resolved<300?'Aún hay pocos partidos terminados: las primeras propuestas suelen tardar unas semanas.':'Evoluciona una vez al día.');
+  $('labPendBox').hidden=!(L_.pending||[]).length;$('labPend').innerHTML=(L_.pending||[]).map(p=>labCard(p,'pend')).join('');
+  $('labProm').innerHTML=(L_.promoted||[]).length?L_.promoted.slice().reverse().map(p=>labCard(p,'prom')).join(''):'<p class="small muted">Todavía ninguno. Cuando un método supere la prueba, te lo propondré aquí y por Telegram.</p>';
+  $('labTop').innerHTML=(L_.top||[]).map(p=>labCard(p,'top')).join('')||'<p class="small muted">Sin métodos todavía.</p>';
+}
+document.addEventListener('click',async e=>{
+  const ok=e.target.dataset.labok,no=e.target.dataset.labno,see=e.target.dataset.labsee;
+  if(see){e.preventDefault();METHOD=see;ls.set('mv.method',METHOD);setMode('ficticio');document.querySelector('nav button[data-v="inicio"]').click();return}
+  if(!ok&&!no)return;
+  if(!TOKEN){toast('Pon tu token de GitHub en Ajustes');return}
+  e.target.disabled=true;
+  try{const f=await readFile('docs/data/inbox.enc');const inbox=f?await dec(f.text,PW):[];
+    inbox.push({id:crypto.randomUUID(),type:ok?'lab_ok':'lab_no',lab:ok||no,ts:new Date().toISOString()});
+    await writeFile('docs/data/inbox.enc',await enc(inbox.slice(-300),PW),'laboratorio');
+    const L_=STATE.lab_summary;const q=L_.pending.find(x=>x.id===(ok||no));L_.pending=L_.pending.filter(x=>x!==q);
+    if(ok&&q)(L_.promoted=L_.promoted||[]).push({...q,how:'aprobado por ti',since:new Date().toISOString().slice(0,10)});
+    renderLab();toast(ok?'Aprobado. Empezará a apostar en ficticio en la próxima pasada del bot.':'Rechazado. No se volverá a proponer.');
+  }catch(err){toast('No se pudo guardar: '+err.message);e.target.disabled=false}
+});
 $('refresh').onclick=()=>loadState().then(()=>toast('Actualizado'));
 $('scanNow').onclick=async()=>{if(!TOKEN){toast('Pon tu token de GitHub en Ajustes');return}
   const btn=$('scanNow'),before=STATE?.last_scan_summary?.ts||'';
@@ -713,6 +797,7 @@ function byDay(bets,desc,openFirst){
 }
 function renderState(){
   if(!SETTINGS)return;
+  if(!METHODS[METHOD])METHOD='valor';
   const real=MODE==='real';
   const AUTO=SETTINGS.real.metodo==='auto',autoBest=STATE?.auto?.best||null,rm=AUTO?autoBest:(METHODS[SETTINGS.real.metodo]?SETTINGS.real.metodo:'valor');
   const proven=new Set(STATE?.auto?.qualified||[]);
@@ -847,7 +932,7 @@ $('bonSave').onclick=async()=>{if(!TOKEN){$('bonMsg').innerHTML='<span class="ne
 /* ---------- navegación ---------- */
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-current',x===b));
-  ['inicio','historial','bonos','ajustes'].forEach(v=>$('v'+v[0].toUpperCase()+v.slice(1)).hidden=v!==b.dataset.v);window.scrollTo(0,0)});
+  ['inicio','historial','lab','bonos','ajustes'].forEach(v=>$('v'+v[0].toUpperCase()+v.slice(1)).hidden=v!==b.dataset.v);window.scrollTo(0,0)});
 setMode(MODE);
 boot().catch(e=>{screen('scrLogin');$('loginErr').textContent='No pude cargar los datos: '+e.message});
 setInterval(()=>{if(PW&&!document.hidden)loadState()},5*60*1000);

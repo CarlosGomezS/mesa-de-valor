@@ -262,3 +262,43 @@ class Exchange(unittest.TestCase):
         b = {"stake": 2.0, "odds": 2.55, "com": 0.05}
         run.settle_bet(b, "ganada")
         self.assertAlmostEqual(b["pnl"], round(2 * 1.55 * 0.95, 2))
+
+
+class LabFlow(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        run.DATA = Path(self.tmp.name)
+        run.Odds = FakeOdds
+        self.sent = []
+        run.telegram = lambda s, t: self.sent.append(t)
+        (run.DATA / "settings.enc").write_text(run.encrypt({"odds_api_key": "k", "ligas": ["soccer_spain_la_liga"],
+                                                            "casas": ["unibet_fr"]}, PW))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_observe_learn_propose_approve(self):
+        import lab as labm
+        start = datetime.now(UTC) + timedelta(hours=5)
+        FakeOdds.events = [ev("e1", start, (2.30, 3.30, 3.30), (2.55, 3.10, 3.60))]
+        run.run(PW)
+        lab = labm.unpack(run.decrypt_bytes((run.DATA / "lab.enc").read_bytes(), PW))
+        self.assertEqual(len(lab["rows"]), 3)                  # 3 resultados x 1 casa
+        st = run.decrypt((run.DATA / "state.enc").read_text(), PW)
+        self.assertEqual(st["lab"]["gen"], 1)
+        self.assertGreaterEqual(st["lab_summary"]["rows"], 3)
+
+        # forzamos una propuesta y la aprobamos desde la web
+        g = labm.random_genome(__import__("random").Random(1), [])
+        g.update(ref="pinnacle", min_ev=0.0, max_ev=0.3, min_odds=1.01, max_odds=None, outcome=None, sport=None,
+                 league=None, min_h=0, max_h=None, drift=None, kf=0.25)
+        st["lab"]["pending"] = [{"id": "abc123", "g": g, "m": {}, "desc": labm.describe(g), "since": "2026-10-24"}]
+        (run.DATA / "state.enc").write_text(run.encrypt(st, PW))
+        (run.DATA / "inbox.enc").write_text(run.encrypt([{"id": "x1", "type": "lab_ok", "lab": "abc123"}], PW))
+        FakeOdds.events = [ev("e2", start, (2.30, 3.30, 3.30), (2.55, 3.10, 3.60))]
+        run.run(PW, force=True)
+        st = run.decrypt((run.DATA / "state.enc").read_text(), PW)
+        self.assertEqual(st["lab"]["promoted"][0]["id"], "abc123")
+        self.assertTrue(st["ledgers"]["f_lab_abc123"]["bets"])          # ya apuesta en ficticio
+        self.assertTrue(any("aprobado" in m for m in self.sent))
+        self.assertIn("lab_abc123", st["lab_summary"]["names"])
