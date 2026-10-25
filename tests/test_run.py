@@ -414,6 +414,10 @@ def fake_op_get(start_dt):
                          {"tournamentId": 23, "tournamentName": "Serie A", "categoryName": "Italy"}],
                     11: [{"tournamentId": 138, "tournamentName": "Euroleague", "categoryName": "International"}],
                     12: [], 13: [{"tournamentId": 400, "tournamentName": "Bundesliga", "categoryName": "Germany"}]}[q["sportId"]]
+        if path == "markets" and "sportId" not in q:          # v4: todos los mercados de golpe
+            return ([{"marketId": 101, "sportId": 10, "marketType": "1x2", "marketLength": 3, "handicap": 0,
+                      "outcomes": [{"outcomeId": 101}, {"outcomeId": 102}, {"outcomeId": 103}]}] +
+                    [dict(m, sportId=sp) for sp in (11, 12, 13) for m in _get(self, "markets", sportId=sp)])
         if path == "markets":
             return [{"marketId": 111, "marketType": "moneyline", "marketName": "Winner (incl. overtime)", "handicap": 0,
                      "marketLength": 2, "outcomes": [{"outcomeId": 111}, {"outcomeId": 112}]}] if q["sportId"] != 13 else \
@@ -425,6 +429,22 @@ def fake_op_get(start_dt):
                     {"slug": "bet365.es", "bookmakerName": "bet365", "active": True, "domain": "bet365.es"},
                     {"slug": "winamax.es", "bookmakerName": "Winamax", "active": True, "domain": "winamax.es"},
                     {"slug": "betfair-ex", "bookmakerName": "Betfair Exchange", "active": True, "domain": "betfair.com"}]
+        if path == "fixtures":
+            assert q["tournamentId"] == 8
+            return [{"fixtureId": "id777", "participant1Name": "Real Betis Balompié", "participant2Name": "Sevilla FC",
+                     "startTime": start_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z"), "statusId": 0}]
+        if path == "odds-by-tournaments":
+            assert len(q["bookmakers"].split(",")) <= 3
+            def bk(prices):
+                return {"bookmakerIsActive": True, "suspended": False, "markets": {"101": {"marketActive": True, "outcomes": {
+                    str(o): {"players": {"0": {"active": True, "price": p}}} for o, p in zip((101, 102, 103), prices)}}}}
+            odds_ = {}
+            for slug in q["bookmakers"].split(","):
+                if slug == "pinnacle":
+                    odds_[slug] = bk((2.30, 3.30, 3.30))
+                if slug == "bet365.es":
+                    odds_[slug] = bk((2.55, 3.10, 3.20))
+            return [{"fixtureId": "id777", "bookmakerOdds": odds_}]
         if path == "fixtures/odds/main":
             assert q["tournamentId"] == 8
             def qt(bk, oid, price):
@@ -454,6 +474,14 @@ class OddsPapiChain(unittest.TestCase):
         FakeOdds.out_of_credits = False
         self.tmp.cleanup()
 
+    def test_v5_still_supported(self):
+        c = {"ver": 5}
+        o = opm.OddsPapi("k", c)
+        o.discover(datetime.now(UTC))
+        evs = o.odds("soccer_spain_la_liga", ["bet365"], datetime.now(UTC), datetime.now(UTC) + timedelta(days=1))
+        self.assertEqual(evs[0]["home_team"], "Real Betis Balompié")
+        self.assertEqual({b["key"] for b in evs[0]["bookmakers"]}, {"pinnacle", "bet365"})
+
     def test_discovery(self):
         c = {}
         notes = opm.OddsPapi("k", c).discover(datetime.now(UTC))
@@ -467,6 +495,7 @@ class OddsPapiChain(unittest.TestCase):
         self.assertEqual(c["books"]["betfair_ex_eu"]["slug"], "betfair-ex")
         self.assertNotIn("betfair_sb_uk", c["books"])                          # el exchange no es la casa
         self.assertTrue(notes)
+        self.assertEqual(c["ver"], 4)
 
     def test_falls_back_to_oddspapi_and_no_double_bet(self):
         FakeOdds.out_of_credits = True

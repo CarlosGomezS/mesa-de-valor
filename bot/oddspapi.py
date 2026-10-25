@@ -18,7 +18,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
-BASE = "https://v5.oddspapi.io/en"
+BASES = {5: "https://v5.oddspapi.io/en", 4: "https://api.oddspapi.io/v4"}
 UTC = timezone.utc
 
 # nombre aproximado de cada liga en OddsPapi: (deporte, palabras del nombre, país o categoría)
@@ -58,6 +58,10 @@ class OPQuotaOut(OPError):
     pass
 
 
+class OPBadKey(OPError):
+    """La clave no vale para esta versión de la API (las claves de oddspapi.io son de la v4)."""
+
+
 def _norm(s: str | None) -> str:
     s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9. ]", " ", s)).strip()
@@ -66,23 +70,49 @@ def _norm(s: str | None) -> str:
 class OddsPapi:
     def __init__(self, key: str, cache: dict):
         self.key, self.cache, self.calls, self.dead = key, cache, 0, False
+        self.ver = cache.get("ver") or 4
+        self._last = 0.0
 
     # ---------------------------------------------------------------- llamadas
     def _get(self, path: str, **q):
         if self.dead:
             raise OPQuotaOut("en pausa")
+        import time
+        wait = 2.1 - (time.monotonic() - self._last)          # la v4 pide 1-2 s entre consultas
+        if self.ver == 4 and wait > 0:
+            time.sleep(wait)
         q["apiKey"] = self.key
-        url = f"{BASE}/{path}?{urllib.parse.urlencode(q)}"
+        url = f"{BASES[self.ver]}/{path}?{urllib.parse.urlencode(q)}"
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers={"Accept": "application/json"}), timeout=30) as r:
                 self.calls += 1
+                self._last = time.monotonic()
                 return json.loads(r.read().decode() or "null")
         except urllib.error.HTTPError as e:
+            self._last = time.monotonic()
             body = e.read().decode("utf-8", "ignore")[:200]
-            if e.code in (401, 402, 403, 429):
+            if e.code == 401 and "key" in body.lower():
+                raise OPBadKey(f"HTTP 401: {body}") from e
+            if e.code in (402, 403, 429) or e.code == 401:
                 self.dead = True
                 raise OPQuotaOut(f"HTTP {e.code}: {body}") from e
             raise OPError(f"HTTP {e.code}: {body}") from e
+
+    def _detect(self) -> list:
+        """Prueba la v4 y, si la clave no vale ahí, la v5. Devuelve la lista de deportes."""
+        if self.cache.get("ver"):
+            self.ver = self.cache["ver"]
+            return self._get("sports") or []
+        for v in (4, 5):
+            self.ver = v
+            try:
+                sports = self._get("sports") or []
+                self.cache["ver"] = v
+                return sports
+            except OPBadKey:
+                continue
+        self.dead = True
+        raise OPQuotaOut("La clave de OddsPapi no es válida en ninguna versión de la API")
 
     # ---------------------------------------------------------------- descubrimiento
     def discover(self, now: datetime, force: bool = False) -> list[str]:
@@ -91,7 +121,8 @@ class OddsPapi:
         if not force and c.get("ts") and datetime.fromisoformat(c["ts"]) > now - timedelta(days=7):
             return []
         notes = []
-        sports = self._get("sports") or []
+        sports = self._detect()
+        notes.append(f"versión v{self.ver}")
         sid = {}
         for sp in sports:
             name = _norm(sp.get("sportName"))
@@ -128,7 +159,12 @@ class OddsPapi:
         for sport in ("basketball", "tennis", "handball"):
             if sport not in sid:
                 continue
-            ms = self._get("markets", sportId=sid[sport]) or []
+            if self.ver == 4:
+                if "_m" not in c:
+                    c["_m"] = self._get("markets") or []
+                ms = [m for m in c["_m"] if m.get("sportId") == sid[sport]]
+            else:
+                ms = self._get("markets", sportId=sid[sport]) or []
             pick = None
             for m in ms:
                 if m.get("playerProp") or (m.get("handicap") not in (None, 0, 0.0)):
@@ -144,13 +180,21 @@ class OddsPapi:
                         pick = m
             if pick:
                 markets[sport] = {"m": pick["marketId"], "o": [o["outcomeId"] for o in pick.get("outcomes", [])]}
+        c.pop("_m", None)
         notes.append("mercados " + ", ".join(f"{k}={v['m']}" for k, v in markets.items()))
 
         books = {}
-        for b in self._get("bookmakers") or []:
-            if not b.get("active", True):
+        bks = self._get("bookmakers") or []
+        if isinstance(bks, dict):
+            bks = list(bks.values())
+        for b in bks:
+            if not isinstance(b, dict) or not b.get("active", True):
                 continue
-            name, slug, dom = _norm(b.get("bookmakerName")), b.get("slug"), (b.get("domain") or "").lower()
+            slug = b.get("slug") or b.get("bookmaker") or b.get("bookmakerSlug")
+            name = _norm(b.get("bookmakerName") or b.get("name") or slug)
+            dom = (b.get("domain") or b.get("url") or "").lower()
+            if not slug:
+                continue
             for our, words in BOOK_NAMES.items():
                 if any(name == w or name.startswith(w) or _norm(slug) == w.replace(" ", "") for w in words):
                     # «betfair» a secas no debe confundirse con el exchange
@@ -176,11 +220,45 @@ class OddsPapi:
         slug_to_us = {v["slug"]: (k, v["title"]) for k, v in c.get("books", {}).items() if k in wanted}
         if not slug_to_us:
             return []
-        data = self._get("fixtures/odds/main", tournamentId=tid, bookmakers=",".join(slug_to_us)) or []
-        return convert(data, mk, slug_to_us, frm, to)
+        if self.ver == 5:
+            data = self._get("fixtures/odds/main", tournamentId=tid, bookmakers=",".join(slug_to_us)) or []
+            return convert(data, mk, slug_to_us, frm, to)
+        # v4: nombres en /fixtures; cuotas en /odds-by-tournaments (máx. 3 casas, el exchange solo)
+        fx = self._get("fixtures", tournamentId=tid, statusId=0,
+                       **{"from": frm.strftime("%Y-%m-%dT%H:%M:%SZ"), "to": to.strftime("%Y-%m-%dT%H:%M:%SZ")}) or []
+        fx = {f["fixtureId"]: f for f in fx if f.get("fixtureId")}
+        if not fx:
+            return []
+        slugs = list(slug_to_us)
+        exch = [x for x in slugs if "betfair-ex" in x or x.endswith("-ex")]
+        rest = [x for x in slugs if x not in exch]
+        groups = [rest[i:i + 3] for i in range(0, len(rest), 3)] + [[x] for x in exch]
+        merged: dict = {}
+        for g in groups:
+            for item in self._get("odds-by-tournaments", tournamentIds=tid, bookmakers=",".join(g)) or []:
+                fid = item.get("fixtureId")
+                if fid in fx:
+                    merged.setdefault(fid, {}).update(item.get("bookmakerOdds") or {})
+        return convert_v4(fx, merged, mk, slug_to_us, frm, to)
 
-    def settlement(self, fixture_id: str) -> dict | None:
+    def settlement(self, fixture_id: str, sport: str = "soccer") -> dict | None:
         """Resultado final de un partido (para cobrar apuestas que no encuentran otras fuentes)."""
+        if self.ver == 4:
+            mk = self.cache.get("markets", {}).get(sport)
+            d = self._get("settlements", fixtureId=fixture_id) or {}
+            if not mk:
+                return None
+            outs = (((d.get("markets") or {}).get(str(mk["m"])) or {}).get("outcomes") or {})
+            res = {int(o): ((v.get("players") or {}).get("0") or {}).get("result") for o, v in outs.items()}
+            if not res or any(r in (None, "UNDECIDED") for r in res.values()):
+                return None
+            won = [o for o, r in res.items() if r == "WIN"]
+            if len(won) != 1 or won[0] not in mk["o"]:
+                return None
+            idx = mk["o"].index(won[0])
+            three = len(mk["o"]) == 3
+            hs, as_ = {0: (1, 0), 1: (0, 0) if three else (0, 1), 2: (0, 1)}[idx]
+            return {"home": None, "away": None, "hs": hs, "as": as_, "no_score": True}
         d = self._get("fixtures/settlement", fixtureId=fixture_id) or {}
         sc = (d.get("scores") or {})
         ft = sc.get("result") or sc.get("fulltime")
@@ -228,5 +306,41 @@ def convert(data: list, mk: dict, slug_to_us: dict, frm: datetime, to: datetime)
                               "markets": [{"key": "h2h", "outcomes": [{"name": n, "price": v} for n, v in prices.items()]}]})
         if any(b["key"] == "pinnacle" for b in books):
             out.append({"id": "op_" + str(f["fixtureId"]), "home_team": home, "away_team": away,
+                        "commence_time": start.strftime("%Y-%m-%dT%H:%M:%SZ"), "bookmakers": books, "source": "oddspapi"})
+    return out
+
+
+def convert_v4(fx: dict, merged: dict, mk: dict, slug_to_us: dict, frm: datetime, to: datetime) -> list[dict]:
+    out = []
+    names = ["home", "draw", "away"] if len(mk["o"]) == 3 else ["home", "away"]
+    for fid, f in fx.items():
+        try:
+            start = datetime.fromisoformat(str(f.get("startTime")).replace("Z", "+00:00")).astimezone(UTC)
+        except ValueError:
+            continue
+        if not (frm <= start <= to):
+            continue
+        home, away = f.get("participant1Name"), f.get("participant2Name")
+        if not home or not away:
+            continue
+        label = {"home": home, "away": away, "draw": "Draw"}
+        books = []
+        for slug, bo in (merged.get(fid) or {}).items():
+            if slug not in slug_to_us or not isinstance(bo, dict) or bo.get("suspended") or bo.get("bookmakerIsActive") is False:
+                continue
+            m = (bo.get("markets") or {}).get(str(mk["m"])) or {}
+            if m.get("marketActive") is False:
+                continue
+            prices = {}
+            for i, oid in enumerate(mk["o"]):
+                pl = (((m.get("outcomes") or {}).get(str(oid)) or {}).get("players") or {}).get("0") or {}
+                if pl.get("active", True) and pl.get("price") and float(pl["price"]) > 1:
+                    prices[label[names[i]]] = round(float(pl["price"]), 3)
+            if len(prices) == len(names):
+                key, title = slug_to_us[slug]
+                books.append({"key": key, "title": title,
+                              "markets": [{"key": "h2h", "outcomes": [{"name": n, "price": v} for n, v in prices.items()]}]})
+        if any(b["key"] == "pinnacle" for b in books):
+            out.append({"id": "op_" + str(fid), "home_team": home, "away_team": away,
                         "commence_time": start.strftime("%Y-%m-%dT%H:%M:%SZ"), "bookmakers": books, "source": "oddspapi"})
     return out

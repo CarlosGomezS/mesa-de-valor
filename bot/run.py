@@ -832,7 +832,7 @@ def run(password: str, force: bool = False):
             x["op_try"] = iso(t)
         op_tries += 1
         try:
-            r = op.settlement(fid)
+            r = op.settlement(fid, b["sport"].split("_")[0])
         except Exception as e:
             DIAG.append(f"op resultado: {str(e)[:60]}")
             continue
@@ -921,11 +921,15 @@ def run(password: str, force: bool = False):
                 DIAG.append(f"op {sport}: {len(evs)} partidos")
                 return reference(evs, a["metodo"])
             except opm.OPQuotaOut as e:
-                DIAG.append(f"op agotada: {str(e)[:80]}")
-                if not op_warned and not state.get("op_warned_month") == month:
-                    report.append("💳 También se han acabado las consultas de OddsPapi este mes. "
+                DIAG.append(f"op parada: {str(e)[:80]}")
+                bad = "no es válida" in str(e) or "invalid" in str(e).lower()
+                tag = ("clave", month) if bad else ("agotada", month)
+                if not op_warned and state.get("op_warned") != list(tag):
+                    report.append("🔑 OddsPapi dice que la clave no es válida. Cópiala de nuevo desde tu cuenta de oddspapi.io "
+                                  "y pégala en Ajustes → Claves." if bad else
+                                  "💳 También se han acabado las consultas de OddsPapi este mes. "
                                   "El bot sigue cobrando resultados y aprendiendo, y vuelve a buscar cuando se renueven.")
-                    state["op_warned_month"] = month
+                    state["op_warned"] = list(tag)
                 op_warned = True
             except Exception as e:
                 DIAG.append(f"op {sport}: error {str(e)[:80]}")
