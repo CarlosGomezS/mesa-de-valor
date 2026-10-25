@@ -513,7 +513,8 @@ async function setSecret(name,value,tok){
   const sealed=sealedBox(te.encode(value),unb64(k.key));
   await gh('/actions/secrets/'+name,{method:'PUT',body:JSON.stringify({encrypted_value:b64(sealed),key_id:k.key_id})},tok);
 }
-async function dispatch(){return gh('/actions/workflows/bot.yml/dispatches',{method:'POST',body:JSON.stringify({ref:'main',inputs:{forzar:'si'}})})}
+async function dispatch(forzar='si'){return gh('/actions/workflows/bot.yml/dispatches',{method:'POST',body:JSON.stringify({ref:'main',inputs:{forzar}})})}
+async function lastRun(){const r=await gh('/actions/workflows/bot.yml/runs?per_page=1&event=workflow_dispatch&t='+Date.now());return r?.workflow_runs?.[0]||null}
 
 /* ---------- datos fijos ---------- */
 const LEAGUES=[
@@ -748,10 +749,35 @@ document.addEventListener('click',async e=>{
     renderLab();toast(ok?'Aprobado. Empezará a apostar en ficticio en la próxima pasada del bot.':'Rechazado. No se volverá a proponer.');
   }catch(err){toast('No se pudo guardar: '+err.message);e.target.disabled=false}
 });
-$('refresh').onclick=()=>loadState().then(()=>toast('Actualizado'));
+function snapshotBets(){const m={};for(const L of Object.values(STATE?.ledgers||{}))for(const b of L.bets||[])m[b.id+'|'+(b.method||'')+'|'+b.event_id]=b.status;return m}
+function diffBets(before){let won=0,lost=0,nul=0,neu=0;
+  for(const [name,L] of Object.entries(STATE?.ledgers||{}))for(const b of L.bets||[]){const k=b.id+'|'+(b.method||'')+'|'+b.event_id,was=before[k];
+    if(was===undefined){neu++;continue}
+    if(was!==b.status){if(b.status==='ganada')won++;else if(b.status==='perdida')lost++;else if(b.status==='nula')nul++}}
+  return {won,lost,nul,neu}}
+let refreshing=false;
+$('refresh').onclick=async()=>{
+  if(refreshing)return;
+  const btn=$('refresh');
+  if(!TOKEN){await loadState();toast('Mostrando lo último guardado. Para que el bot revise resultados, pon tu token de GitHub en Ajustes.');return}
+  refreshing=true;btn.disabled=true;const before=snapshotBets();const t0=new Date(Date.now()-5000).toISOString();
+  try{await dispatch('no')}catch(e){refreshing=false;btn.disabled=false;await loadState();toast('No pude despertar al bot: '+e.message);return}
+  let secs=0;btn.textContent='Revisando… 0 s';
+  const tick=setInterval(async()=>{secs+=5;btn.textContent='Revisando… '+secs+' s';
+    if(secs%15)return;
+    let run=null;try{run=await lastRun()}catch(e){}
+    const done=run&&run.created_at>=t0.slice(0,19)&&run.status==='completed';
+    if(done||secs>=240){clearInterval(tick);
+      await new Promise(r=>setTimeout(r,done?8000:0));      // da tiempo a que se publique el estado nuevo
+      await loadState();refreshing=false;btn.disabled=false;btn.textContent='Actualizar';
+      const d=diffBets(before);const parts=[];
+      if(d.won)parts.push(d.won+' ganada'+(d.won>1?'s':''));if(d.lost)parts.push(d.lost+' perdida'+(d.lost>1?'s':''));
+      if(d.nul)parts.push(d.nul+' anulada'+(d.nul>1?'s':''));if(d.neu)parts.push(d.neu+' nueva'+(d.neu>1?'s':''));
+      toast(!done?'El bot tarda más de lo normal; te enseño lo último guardado.':parts.length?'Actualizado: '+parts.join(', ')+'.':'Actualizado: sin cambios desde la última revisión.')}},5000);
+};
 $('scanNow').onclick=async()=>{if(!TOKEN){toast('Pon tu token de GitHub en Ajustes');return}
   const btn=$('scanNow'),before=STATE?.last_scan_summary?.ts||'';
-  try{await dispatch()}catch(e){toast(e.message);return}
+  try{await dispatch('si')}catch(e){toast(e.message);return}
   btn.disabled=true;let secs=0;
   const tick=setInterval(async()=>{secs+=10;btn.textContent='Buscando… '+secs+' s';
     if(secs%20===0){await loadState();const sm=STATE?.last_scan_summary;
