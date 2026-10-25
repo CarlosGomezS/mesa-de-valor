@@ -395,3 +395,97 @@ class FreeFootballResults(unittest.TestCase):
         self.assertNotIn(("scores", "soccer_spain_la_liga"), FakeOdds.calls)     # 0 créditos gastados
         self.assertTrue(any("Real Betis 2-1 Sevilla FC" in m for m in sent))
         tmp.cleanup()
+
+
+import oddspapi as opm  # noqa: E402
+
+
+def fake_op_get(start_dt):
+    st_ = int(start_dt.timestamp())
+
+    def _get(self, path, **q):
+        self.calls += 1
+        if path == "sports":
+            return [{"sportId": 10, "sportName": "Soccer"}, {"sportId": 11, "sportName": "Basketball"},
+                    {"sportId": 12, "sportName": "Tennis"}, {"sportId": 13, "sportName": "Handball"}]
+        if path == "tournaments":
+            return {10: [{"tournamentId": 8, "tournamentName": "LaLiga", "categoryName": "Spain"},
+                         {"tournamentId": 54, "tournamentName": "LaLiga 2", "categoryName": "Spain"},
+                         {"tournamentId": 23, "tournamentName": "Serie A", "categoryName": "Italy"}],
+                    11: [{"tournamentId": 138, "tournamentName": "Euroleague", "categoryName": "International"}],
+                    12: [], 13: [{"tournamentId": 400, "tournamentName": "Bundesliga", "categoryName": "Germany"}]}[q["sportId"]]
+        if path == "markets":
+            return [{"marketId": 111, "marketType": "moneyline", "marketName": "Winner (incl. overtime)", "handicap": 0,
+                     "marketLength": 2, "outcomes": [{"outcomeId": 111}, {"outcomeId": 112}]}] if q["sportId"] != 13 else \
+                   [{"marketId": 131, "marketType": "1x2", "period": "fulltime", "handicap": 0, "marketLength": 3,
+                     "outcomes": [{"outcomeId": 131}, {"outcomeId": 132}, {"outcomeId": 133}]}]
+        if path == "bookmakers":
+            return [{"slug": "pinnacle", "bookmakerName": "Pinnacle", "active": True, "domain": "pinnacle.com"},
+                    {"slug": "bet365", "bookmakerName": "bet365", "active": True, "domain": "bet365.com"},
+                    {"slug": "bet365.es", "bookmakerName": "bet365", "active": True, "domain": "bet365.es"},
+                    {"slug": "winamax.es", "bookmakerName": "Winamax", "active": True, "domain": "winamax.es"},
+                    {"slug": "betfair-ex", "bookmakerName": "Betfair Exchange", "active": True, "domain": "betfair.com"}]
+        if path == "fixtures/odds/main":
+            assert q["tournamentId"] == 8
+            def qt(bk, oid, price):
+                return {f"x:{bk}:101:{oid}": {"bookmaker": bk, "marketId": 101, "outcomeId": oid, "playerId": 0,
+                                              "price": price, "active": True}}
+            pin = {**qt("pinnacle", 101, 2.30), **qt("pinnacle", 102, 3.30), **qt("pinnacle", 103, 3.30)}
+            b365 = {**qt("bet365.es", 101, 2.55), **qt("bet365.es", 102, 3.10), **qt("bet365.es", 103, 3.20)}
+            return [{"fixtureId": "id777", "startTime": st_, "status": {"statusId": 0},
+                     "participants": {"participant1Name": "Real Betis Balompié", "participant2Name": "Sevilla FC"},
+                     "odds": {"pinnacle": pin, "bet365.es": b365}}]
+        raise AssertionError(path)
+    return _get
+
+
+class OddsPapiChain(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        run.DATA = Path(self.tmp.name); run.Odds = FakeOdds
+        self.sent = []; run.telegram = lambda s, t: self.sent.append(t)
+        self.start = datetime.now(UTC) + timedelta(hours=5)
+        self.orig = opm.OddsPapi._get
+        opm.OddsPapi._get = fake_op_get(self.start)
+        FakeOdds.events, FakeOdds.calls = [], []
+
+    def tearDown(self):
+        opm.OddsPapi._get = self.orig
+        FakeOdds.out_of_credits = False
+        self.tmp.cleanup()
+
+    def test_discovery(self):
+        c = {}
+        notes = opm.OddsPapi("k", c).discover(datetime.now(UTC))
+        self.assertEqual(c["tours"]["soccer_spain_la_liga"], 8)
+        self.assertEqual(c["tours"]["soccer_spain_segunda_division"], 54)
+        self.assertEqual(c["tours"]["handball_germany_bundesliga"], 400)
+        self.assertEqual(c["markets"]["basketball"], {"m": 111, "o": [111, 112]})
+        self.assertEqual(c["markets"]["handball"]["m"], 131)
+        self.assertEqual(c["books"]["bet365"]["slug"], "bet365.es")          # prefiere la web española
+        self.assertEqual(c["books"]["winamax_fr"]["slug"], "winamax.es")
+        self.assertEqual(c["books"]["betfair_ex_eu"]["slug"], "betfair-ex")
+        self.assertNotIn("betfair_sb_uk", c["books"])                          # el exchange no es la casa
+        self.assertTrue(notes)
+
+    def test_falls_back_to_oddspapi_and_no_double_bet(self):
+        FakeOdds.out_of_credits = True
+        (run.DATA / "settings.enc").write_text(run.encrypt(
+            {"odds_api_key": "k", "op_key": "op", "ligas": ["soccer_spain_la_liga"], "casas": ["bet365", "winamax_fr"]}, PW))
+        run.run(PW, force=True)
+        st = run.decrypt((run.DATA / "state.enc").read_text(), PW)
+        bets = st["ledgers"]["f_valor"]["bets"]
+        self.assertEqual(len(bets), 1)
+        self.assertEqual((bets[0]["event_id"], bets[0]["book"], bets[0]["odds"]), ("op_id777", "bet365", 2.55))
+        self.assertTrue(any("Búsqueda terminada" in m for m in self.sent))
+        # vuelve The Odds API con el mismo partido (otro identificador y otros nombres): no se repite la apuesta
+        FakeOdds.out_of_credits = False
+        st["quota"] = {}
+        (run.DATA / "state.enc").write_text(run.encrypt(st, PW))
+        FakeOdds.events = [ev("e1", self.start, (2.30, 3.30, 3.30), (2.60, 3.10, 3.20))]
+        for b in FakeOdds.events[0]["bookmakers"]:
+            if b["key"] != "pinnacle":
+                b["key"], b["title"] = "winamax_fr", "Winamax"
+        run.run(PW, force=True)
+        st = run.decrypt((run.DATA / "state.enc").read_text(), PW)
+        self.assertEqual(len(st["ledgers"]["f_valor"]["bets"]), 1)

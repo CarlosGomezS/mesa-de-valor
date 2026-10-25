@@ -27,6 +27,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import strategy as st  # noqa: E402
 import lab as labm  # noqa: E402
+import oddspapi as opm  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "docs" / "data"
@@ -35,7 +36,7 @@ MAD = ZoneInfo("Europe/Madrid")
 ITER = 210_000
 
 DEFAULT_SETTINGS = {
-    "odds_api_key": "", "fd_key": "", "telegram_token": "", "telegram_chat_id": "",
+    "odds_api_key": "", "fd_key": "", "op_key": "", "op_limit": 250, "telegram_token": "", "telegram_chat_id": "",
     "ficticio": {"activo": True, "banca_inicial": 50.0, "avisar": True},
     "real": {"activo": False, "banca_inicial": 50.0, "metodo": "auto"},
     "ligas": ["soccer_spain_la_liga", "soccer_spain_segunda_division", "soccer_efl_champ",
@@ -171,6 +172,9 @@ def http_json(url: str, data: bytes | None = None):
 
 # ============================ fuentes ============================
 
+ODDSAPI_MISSING = {"bet365"}       # Bet365 solo llega por OddsPapi
+
+
 class QuotaOut(Exception):
     """La API rechaza las consultas (401): casi siempre, consultas del mes agotadas."""
 
@@ -213,6 +217,7 @@ class Odds:
         if frm and to:
             q["commenceTimeFrom"] = frm.strftime("%Y-%m-%dT%H:%M:%SZ")
             q["commenceTimeTo"] = to.strftime("%Y-%m-%dT%H:%M:%SZ")
+        books = [b for b in books if b not in ODDSAPI_MISSING]      # casas que esta API no tiene
         if books:
             q["bookmakers"] = ",".join(sorted(set(["pinnacle"] + books)))
         else:
@@ -446,7 +451,8 @@ def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict
         note(state, f"{name}: sin apuestas nuevas ({block})")
         return new
     for eid, r, ev, key, title, outcome, price, p in cands:
-        if any(b["event_id"] == eid and b["status"] != "descartada" for b in bets):
+        if any(b["status"] != "descartada" and (b["event_id"] == eid or same_match(b, r["home"], r["away"], r["commence"]))
+               for b in bets):
             continue
         com = a.get("comision_exchange", 0.05) if key.startswith("betfair_ex") or key == "matchbook" else 0.0
         if m.get("stake") == "flat":
@@ -515,12 +521,51 @@ def feed_results(labdata: dict, res: dict) -> bool:
     return sum(1 for e in labdata["events"].values() if e[5] is not None) != before
 
 
+def bet_teams(b: dict) -> tuple[str, str] | None:
+    return tuple(b["event"].split(" - ", 1)) if " - " in b.get("event", "") else None
+
+
+def same_match(b: dict, home: str, away: str, commence: str) -> bool:
+    """¿Es la apuesta b del mismo partido, aunque venga de otra fuente con otro identificador?"""
+    tm = bet_teams(b)
+    if not tm:
+        return False
+    try:
+        return st.same_event(home, away, pt(commence), tm[0], tm[1], pt(b["commence"]), max_minutes=90)
+    except Exception:
+        return False
+
+
+def match_ref(ref: dict, b: dict) -> dict | None:
+    if b["event_id"] in ref:
+        return ref[b["event_id"]]
+    for r in ref.values():
+        if same_match(b, r["home"], r["away"], r["commence"]):
+            return r
+    return None
+
+
 def apply_scores(all_bets, sport, res, owner, settled_now):
+    by_name = [x for x in res.values() if x.get("commence_time")]
     for b in all_bets:
-        x = res.get(b["event_id"])
-        if b["status"] != "abierta" or b["sport"] != sport or not x:
+        if b["status"] != "abierta" or b["sport"] != sport:
             continue
-        sc = {y["name"]: float(y["score"]) for y in x["scores"]}
+        x = res.get(b["event_id"])
+        if not x:
+            x = next((y for y in by_name if same_match(b, y["home_team"], y["away_team"], y["commence_time"])), None)
+            if x:      # otra fuente: los nombres pueden variar; se traduce el resultado a los de la apuesta
+                tm = bet_teams(b)
+                sc = {y["name"]: y["score"] for y in x["scores"]}
+                x = {"home_team": tm[0], "away_team": tm[1],
+                     "scores": [{"name": tm[0], "score": sc.get(x["home_team"])}, {"name": tm[1], "score": sc.get(x["away_team"])}]}
+                if b["outcome_key"] not in ("Draw", tm[0], tm[1]):
+                    continue
+        if not x:
+            continue
+        try:
+            sc = {y["name"]: float(y["score"]) for y in x["scores"] if y.get("score") is not None}
+        except (TypeError, ValueError):
+            continue
         hs, w = sc.get(x["home_team"]), sc.get(x["away_team"])
         if hs is None or w is None:
             continue
@@ -664,6 +709,20 @@ def run(password: str, force: bool = False):
         save(state, password)
         return
 
+    op = opm.OddsPapi(s["op_key"], state.setdefault("op_cache", {})) if s.get("op_key") else None
+    opb = state.setdefault("op_budget", {})
+    month, day_ = t.strftime("%Y-%m"), t.astimezone(MAD).strftime("%Y-%m-%d")
+    if opb.get("month") != month:
+        opb.clear(); opb.update(month=month, used=0)
+    if opb.get("day") != day_:
+        nxt = (t.replace(day=28) + timedelta(days=4)).replace(day=1)
+        left = max(1, (nxt.date() - t.date()).days)
+        opb.update(day=day_, used_start=opb["used"],
+                   allow=max(2, (int(s.get("op_limit") or 250) - opb["used"]) // left))
+
+    def op_ok() -> bool:
+        return bool(op) and not op.dead and (opb["used"] + op.calls) < int(s.get("op_limit") or 250) \
+            and (opb["used"] + op.calls - opb["used_start"]) < opb["allow"]
     quota = state.setdefault("quota", {})
     paused = bool(quota.get("retry_at")) and t < pt(quota["retry_at"])
     odds = Odds(s["odds_api_key"], paused=paused)
@@ -758,6 +817,32 @@ def run(password: str, force: bool = False):
             continue
         apply_scores(all_bets, sport, res, owner, settled_now)
 
+    # 2c) apuestas que vinieron de OddsPapi y nadie más ha cobrado: su propio resultado (1 consulta por partido)
+    op_tries = 0
+    for b in sorted(all_bets, key=lambda x: x["commence"]):
+        if op_tries >= 4 or not op_ok():
+            break
+        if (b["status"] != "abierta" or not str(b["event_id"]).startswith("op_")
+                or pt(b["commence"]) > t - timedelta(hours=4)
+                or (b.get("op_try") and pt(b["op_try"]) > t - timedelta(hours=6))):
+            continue
+        fid = b["event_id"][3:]
+        same = [x for x in all_bets if x["event_id"] == b["event_id"] and x["status"] == "abierta"]
+        for x in same:
+            x["op_try"] = iso(t)
+        op_tries += 1
+        try:
+            r = op.settlement(fid)
+        except Exception as e:
+            DIAG.append(f"op resultado: {str(e)[:60]}")
+            continue
+        if r and r["hs"] is not None and r["as"] is not None:
+            tm = bet_teams(b) or (r["home"], r["away"])
+            res = {b["event_id"]: {"id": b["event_id"], "completed": True, "home_team": tm[0], "away_team": tm[1],
+                                   "scores": [{"name": tm[0], "score": str(r["hs"])}, {"name": tm[1], "score": str(r["as"])}]}}
+            lab_changed |= feed_results(labdata, res)
+            apply_scores(all_bets, b["sport"], res, owner, settled_now)
+
     for name, Lg in state["ledgers"].items():
         for b in Lg["bets"]:
             if b["status"] == "abierta" and pt(b["commence"]) < t - timedelta(hours=48):
@@ -800,9 +885,9 @@ def run(password: str, force: bool = False):
         except Exception as e:
             report.append(f"⚠️ No pude leer los torneos de tenis activos: {h(e)}")
     budget(state, odds, t)
-    if odds.paused:
+    if odds.paused and not op_ok():
         full = False
-    if full and not force and not can_spend(state, odds):
+    if full and not force and not can_spend(state, odds) and not op_ok():
         full = False
         if not state["budget"].get("warned"):
             state["budget"]["warned"] = True
@@ -814,24 +899,47 @@ def run(password: str, force: bool = False):
     new_fict: dict[str, list] = {}
     skipped = []
     real_msgs: list[str] = []
+    op_warned = False
+
+    def get_ref(sport: str, frm: datetime, to: datetime, close: bool):
+        """Cadena de fuentes: The Odds API y, si no puede, OddsPapi. None = ninguna disponible."""
+        nonlocal op_warned
+        if not odds.paused and can_spend(state, odds):
+            try:
+                if not close and odds.events_count(sport, frm, to) == 0:   # gratis: sin partidos no se gasta
+                    return {}
+                return reference(odds.odds(sport, books, frm, to), a["metodo"])
+            except QuotaOut:
+                pass
+            except Exception as e:
+                note(state, f"No pude leer cuotas de {sport}: {e}")
+                DIAG.append(f"oddsapi {sport}: {str(e)[:80]}")
+        if op_ok() and sport in opm.LEAGUES:
+            try:
+                DIAG.extend("op " + n for n in op.discover(t))
+                evs = op.odds(sport, books, frm, to)
+                DIAG.append(f"op {sport}: {len(evs)} partidos")
+                return reference(evs, a["metodo"])
+            except opm.OPQuotaOut as e:
+                DIAG.append(f"op agotada: {str(e)[:80]}")
+                if not op_warned and not state.get("op_warned_month") == month:
+                    report.append("💳 También se han acabado las consultas de OddsPapi este mes. "
+                                  "El bot sigue cobrando resultados y aprendiendo, y vuelve a buscar cuando se renueven.")
+                    state["op_warned_month"] = month
+                op_warned = True
+            except Exception as e:
+                DIAG.append(f"op {sport}: error {str(e)[:80]}")
+        return None
+
     for sport in sports:
-        try:
-            if sport in soon and not full:
-                if not can_spend(state, odds):
-                    continue
-                ref = reference(odds.odds(sport, books, t, t + timedelta(hours=3, minutes=10)), a["metodo"])
-            else:
-                frm, to = t, t + timedelta(hours=a["horas_vista"])
-                if odds.events_count(sport, frm, to) == 0:   # gratis: si no hay partidos, no gastamos créditos
-                    skipped.append(sport)
-                    scan_summary.append((sport, 0, 0, 0))
-                    continue
-                ref = reference(odds.odds(sport, books, frm, to), a["metodo"])
-        except QuotaOut:
-            break
-        except Exception as e:
-            note(state, f"No pude leer cuotas de {sport}: {e}")
-            report.append(f"⚠️ No pude leer cuotas de {h(sport)}: {h(e)}")
+        close = sport in soon and not full
+        frm, to = (t, t + timedelta(hours=3, minutes=10)) if close else (t, t + timedelta(hours=a["horas_vista"]))
+        ref = get_ref(sport, frm, to, close)
+        if ref is None:
+            continue
+        if not ref and not close:
+            skipped.append(sport)
+            scan_summary.append((sport, 0, 0, 0))
             continue
         for eid, r in ref.items():
             r["prev"] = (state["snapshots"].get(eid) or {}).get("fair")
@@ -840,8 +948,12 @@ def run(password: str, force: bool = False):
         labm.observe(labdata, ref, sport, allowed)
         lab_changed |= len(labdata["rows"]) != n0
         for b in all_bets:
-            if b["sport"] == sport and b["event_id"] in ref and needs_close(b):
-                p = ref[b["event_id"]]["fair"].get(b["outcome_key"])
+            rr = match_ref(ref, b) if b["sport"] == sport and needs_close(b) else None
+            if rr:
+                tm = bet_teams(b) or ("", "")
+                role_name = ("Draw" if b["outcome_key"] == "Draw" else rr["home"] if b["outcome_key"] == tm[0]
+                             else rr["away"] if b["outcome_key"] == tm[1] else b["outcome_key"])
+                p = rr["fair"].get(b["outcome_key"]) or rr["fair"].get(role_name)
                 if p:
                     first = b.get("close_fair_odds") is None
                     close_updates += 1
@@ -915,7 +1027,8 @@ def run(password: str, force: bool = False):
         msg += [h(x) for x in parts] or ["Sin datos de cuotas"]
         if pauses:
             msg.append("⏸ Pausas: " + h("; ".join(p.split(": ", 1)[-1] for p in pauses)))
-        msg.append(f"Consultas gastadas: {odds.used} · quedan {odds.remaining or '?'}")
+        msg.append(f"Consultas gastadas: {odds.used} · quedan {odds.remaining or '?'}"
+                   + (f" · OddsPapi: {op.calls} (mes: {opb['used'] + op.calls}/{s.get('op_limit') or 250})" if op else ""))
         report.insert(0, "\n".join(msg))
     # limpiar fotos viejas
     state["snapshots"] = {k: v for k, v in state["snapshots"].items() if pt(v["commence"]) > t - timedelta(days=2)}
@@ -994,13 +1107,17 @@ def run(password: str, force: bool = False):
     if lab_changed:
         lab_path().write_bytes(encrypt_bytes(labm.pack(labdata), password))
 
+    if op:
+        opb["used"] += op.calls
+        DIAG.append(f"oddspapi: usadas {op.calls} en esta pasada, {opb['used']} este mes de {s.get('op_limit') or 250}"
+                    f"{' (agotada)' if op.dead else ''}")
     DIAG.append(f"cuotas: usadas {odds.used}, quedan {odds.remaining or state.get('credits')}, pausa {odds.paused}"
                 f"{' (' + odds.quota_msg[:60] + ')' if odds.quota_msg else ''}")
     DIAG.append(f"cobradas {len(settled_now)}, abiertas {sum(1 for b in all_bets if b['status'] == 'abierta')}, "
                 f"lab filas {len(labdata['rows'])}, gen {st_lab.get('gen', 0)}")
     write_diag(t)
     idle = (not full and not settled_now and not close_updates and not inbox_msgs and not report
-            and not real_msgs and odds.used == 0 and not lab_changed)
+            and not real_msgs and odds.used == 0 and not lab_changed and not (op and op.calls))
     if idle:          # nada nuevo: no se guarda, así no se publica la web cada 10 minutos
         print("Pasada sin cambios")
         return
