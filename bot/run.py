@@ -703,6 +703,7 @@ def run(password: str, force: bool = False):
     fd = FootballData(s["fd_key"]) if s.get("fd_key") else None
     fdl = state.setdefault("fd_last", {})
     fd_done: dict[str, dict] = {}
+    DIAG.append("fd: con clave" if fd else "fd: SIN CLAVE")
     if fd:
         fd_sports = {b["sport"] for b in all_bets if b["status"] == "abierta" and b["sport"] in FD_CODES
                      and pt(b["commence"]) < t - timedelta(hours=2, minutes=15)}
