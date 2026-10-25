@@ -408,6 +408,8 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
       <div class="card">
         <h3>Claves</h3>
         <label>Clave de The Odds API<input id="aOdds" autocomplete="off"></label>
+        <label>Clave de football-data.org (resultados de fútbol gratis)<input id="aFd" autocomplete="off" spellcheck="false" placeholder="Opcional, pero ahorra muchas consultas"></label>
+        <p class="small muted">Regístrate gratis en <a href="https://www.football-data.org/client/register" target="_blank" rel="noopener">football-data.org</a> y te llega la clave por email. Con ella, los resultados de LaLiga, Premier, Championship, Eredivisie, Liga Portugal, Bundesliga, Serie A, Ligue 1 y Champions no gastan consultas de cuotas.</p>
         <label>Token de GitHub de este dispositivo<input id="aTok" autocomplete="off" type="password"></label>
       </div>
       <div class="row"><button class="btn" id="aSave">Guardar ajustes</button><button class="btn ghost" id="logout">Salir</button><span class="small" id="aMsg"></span></div>
@@ -535,7 +537,7 @@ const PROFILES={
 const PROFILE_TXT={prudente:'Solo apuestas con al menos un 3 % de ventaja, importes pequeños (máx. 4 % de la banca) y parada si pierdes un 10 % en un día.',
  normal:'Algo más de apuestas (desde 2,5 % de ventaja) e importes un poco mayores. Más rápido, pero con más altibajos.',
  personal:'Has cambiado los ajustes avanzados a mano.'};
-const DEFAULTS={odds_api_key:'',telegram_token:'',telegram_chat_id:'',ficticio:{activo:true,banca_inicial:50,avisar:true},
+const DEFAULTS={odds_api_key:'',fd_key:'',telegram_token:'',telegram_chat_id:'',ficticio:{activo:true,banca_inicial:50,avisar:true},
  real:{activo:false,banca_inicial:50,metodo:'auto'},ligas:LEAGUES_V2.slice(),ligas_version:3,casas:MY_BOOKS.slice(),casas_v:1,resumen_diario:true,perfil:'prudente',
  avanzado:{valor_minimo:0.03,valor_maximo:0.15,fraccion_kelly:0.25,tope:0.04,minima:0.5,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30,horas_vista:30,horas_entre_busquedas:6,metodo:'power'}};
 const merge=(a,b)=>{const o={...a};for(const k in b||{})o[k]=(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k])?merge(a[k],b[k]):b[k];return o};
@@ -865,7 +867,7 @@ function fillSettings(){
   $('aBooks').innerHTML=BOOKS.map(([k,n,note,off])=>`<label class="chk"${off?' style="opacity:.55"':''}><input type="checkbox" value="${k}" ${s.casas.includes(k)&&!off?'checked':''} ${off?'disabled':''}>
     <span>${esc(n)}${note?`<br><span class="small muted">${esc(note)}</span>`:''}</span></label>`).join('');
   $('aTg').value=s.telegram_token;$('aChat').value=s.telegram_chat_id;$('aDaily').checked=s.resumen_diario;
-  $('aOdds').value=s.odds_api_key;$('aTok').value=TOKEN||'';
+  $('aOdds').value=s.odds_api_key;$('aFd').value=s.fd_key||'';$('aTok').value=TOKEN||'';
   document.querySelectorAll('[data-adv]').forEach(i=>{const v=s.avanzado[i.dataset.adv];i.value=i.hasAttribute('data-pct')?+(v*100).toFixed(2):v});
   credits();
 }
@@ -889,7 +891,7 @@ $('aSave').onclick=async()=>{
   s.ligas=[...$('aLeagues').querySelectorAll('input:checked')].map(i=>i.value);
   s.casas=[...$('aBooks').querySelectorAll('input:checked')].map(i=>i.value);
   s.telegram_token=$('aTg').value.trim();s.telegram_chat_id=$('aChat').value.trim();s.resumen_diario=$('aDaily').checked;
-  s.odds_api_key=$('aOdds').value.trim();
+  s.odds_api_key=$('aOdds').value.trim();s.fd_key=$('aFd').value.trim();
   document.querySelectorAll('[data-adv]').forEach(i=>{const v=+i.value;s.avanzado[i.dataset.adv]=i.hasAttribute('data-pct')?v/100:v});
   if(!s.ligas.length){msg.innerHTML='<span class="neg">Elige al menos una liga.</span>';return}
   const tok=$('aTok').value.trim();if(tok&&tok!==TOKEN){TOKEN=tok;ls.set('mv.vault',await enc({token:tok},PW))}

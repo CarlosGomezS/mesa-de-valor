@@ -362,3 +362,36 @@ class Credits(unittest.TestCase):
         FakeOdds.out_of_credits = False
         run.run(PW)
         self.assertTrue(any("Vuelven a funcionar" in m for m in self.sent))
+
+
+class FreeFootballResults(unittest.TestCase):
+    def test_settles_with_football_data_without_spending_credits(self):
+        tmp = tempfile.TemporaryDirectory()
+        run.DATA = Path(tmp.name); run.Odds = FakeOdds; FakeOdds.out_of_credits = False
+        sent = []; run.telegram = lambda s, t: sent.append(t)
+        past = datetime.now(UTC) - timedelta(hours=4)
+        pstr = past.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        class FakeFD:
+            def __init__(self, key): self.calls = 0
+            def finished(self, code, d_from, d_to):
+                self.calls += 1
+                assert code == "PD"
+                return [{"utcDate": pstr, "homeTeam": {"name": "Real Betis Balompié", "shortName": "Betis"},
+                         "awayTeam": {"name": "Sevilla FC", "shortName": "Sevilla"},
+                         "score": {"fullTime": {"home": 2, "away": 1}}}]
+        run.FootballData = FakeFD
+        (run.DATA / "settings.enc").write_text(run.encrypt({"odds_api_key": "k", "fd_key": "fd", "ligas": ["soccer_spain_la_liga"]}, PW))
+        bet = {"id": "q", "status": "abierta", "pnl": None, "sport": "soccer_spain_la_liga", "event_id": "z",
+               "event": "Real Betis - Sevilla FC", "stake": 2, "odds": 2.5, "selection": "Real Betis",
+               "outcome_key": "Real Betis", "commence": pstr, "created": pstr, "settled": None, "book": "x"}
+        state = {"version": 1, "ledgers": {"real": {"bets": []}, "f_valor": {"bets": [bet]}}, "snapshots": {},
+                 "last_scan": run.iso(datetime.now(UTC)), "applied": [], "log": []}
+        (run.DATA / "state.enc").write_text(run.encrypt(state, PW))
+        FakeOdds.calls = []
+        run.run(PW)
+        b = run.decrypt((run.DATA / "state.enc").read_text(), PW)["ledgers"]["f_valor"]["bets"][0]
+        self.assertEqual((b["status"], b["pnl"]), ("ganada", 3.0))
+        self.assertNotIn(("scores", "soccer_spain_la_liga"), FakeOdds.calls)     # 0 créditos gastados
+        self.assertTrue(any("Real Betis 2-1 Sevilla FC" in m for m in sent))
+        tmp.cleanup()

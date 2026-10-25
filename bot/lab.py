@@ -59,7 +59,7 @@ def is_exchange(book: str) -> bool:
 # ------------------------------------------------------------------ almacenamiento
 def empty() -> dict:
     # rows: [t_obs, event_id, out(h/d/a), fav, book, odds, p_pin, p_cons, hours, drift]
-    # events: id -> [sport, commence_min, close_h, close_d, close_a, result(h/d/a/None)]
+    # events: id -> [sport, commence_min, close_h, close_d, close_a, result(h/d/a/None), home, away]
     return {"v": 1, "rows": [], "events": {}, "seen": {}}
 
 
@@ -83,7 +83,9 @@ def observe(lab: dict, ref: dict, sport: str, books: set, t_min: int | None = No
             continue
         names = {"h": r["home"], "a": r["away"], "d": "Draw"}
         fair, cons, prev = r["fair"], r.get("consensus") or {}, r.get("prev") or {}
-        ev = lab["events"].setdefault(eid, [sport, c, None, None, None, None])
+        ev = lab["events"].setdefault(eid, [sport, c, None, None, None, None, r["home"], r["away"]])
+        if len(ev) < 8:
+            ev[6:] = [r["home"], r["away"]]
         ev[1] = c
         for i, o in enumerate("hda"):          # la última foto antes del inicio hace de cierre
             if names[o] in fair:

@@ -35,7 +35,7 @@ MAD = ZoneInfo("Europe/Madrid")
 ITER = 210_000
 
 DEFAULT_SETTINGS = {
-    "odds_api_key": "", "telegram_token": "", "telegram_chat_id": "",
+    "odds_api_key": "", "fd_key": "", "telegram_token": "", "telegram_chat_id": "",
     "ficticio": {"activo": True, "banca_inicial": 50.0, "avisar": True},
     "real": {"activo": False, "banca_inicial": 50.0, "metodo": "auto"},
     "ligas": ["soccer_spain_la_liga", "soccer_spain_segunda_division", "soccer_efl_champ",
@@ -226,6 +226,50 @@ class Odds:
 
     def scores(self, sport: str):
         return self._get(f"/sports/{sport}/scores/", {"daysFrom": 3})
+
+
+# ---------------- football-data.org: resultados de fútbol gratis ----------------
+FD_CODES = {"soccer_spain_la_liga": "PD", "soccer_epl": "PL", "soccer_efl_champ": "ELC",
+            "soccer_netherlands_eredivisie": "DED", "soccer_portugal_primeira_liga": "PPL",
+            "soccer_germany_bundesliga": "BL1", "soccer_italy_serie_a": "SA", "soccer_france_ligue_one": "FL1",
+            "soccer_uefa_champs_league": "CL"}
+
+
+class FootballData:
+    BASE = "https://api.football-data.org/v4"
+
+    def __init__(self, key: str):
+        self.key, self.calls = key, 0
+
+    def finished(self, code: str, d_from: datetime, d_to: datetime) -> list[dict]:
+        q = urllib.parse.urlencode({"status": "FINISHED", "dateFrom": d_from.strftime("%Y-%m-%d"),
+                                    "dateTo": d_to.strftime("%Y-%m-%d")})
+        req = urllib.request.Request(f"{self.BASE}/competitions/{code}/matches?{q}", headers={"X-Auth-Token": self.key})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            self.calls += 1
+            return (json.loads(r.read().decode() or "{}") or {}).get("matches", [])
+
+
+def fd_results(fd: FootballData, sport: str, needed: list[tuple], t: datetime) -> dict:
+    """needed: [(event_id, local, visitante, inicio)] -> {event_id: resultado con el formato de The Odds API}."""
+    if not needed:
+        return {}
+    d_from = min(c for *_, c in needed) - timedelta(days=1)
+    matches = fd.finished(FD_CODES[sport], d_from, t + timedelta(days=1))
+    out = {}
+    for eid, home, away, c in needed:
+        for m in matches:
+            ft = (m.get("score") or {}).get("fullTime") or {}
+            if ft.get("home") is None or ft.get("away") is None:
+                continue
+            mt = pt(m["utcDate"])
+            hn = [m["homeTeam"].get(k) for k in ("name", "shortName") if m["homeTeam"].get(k)]
+            an = [m["awayTeam"].get(k) for k in ("name", "shortName") if m["awayTeam"].get(k)]
+            if any(st.same_event(x, y, mt, home, away, c, max_minutes=90) for x in hn for y in an):
+                out[eid] = {"id": eid, "completed": True, "home_team": home, "away_team": away,
+                            "scores": [{"name": home, "score": str(ft["home"])}, {"name": away, "score": str(ft["away"])}]}
+                break
+    return out
 
 
 def telegram_long(s: dict, sections: list[str]):
@@ -471,6 +515,20 @@ def feed_results(labdata: dict, res: dict) -> bool:
     return sum(1 for e in labdata["events"].values() if e[5] is not None) != before
 
 
+def apply_scores(all_bets, sport, res, owner, settled_now):
+    for b in all_bets:
+        x = res.get(b["event_id"])
+        if b["status"] != "abierta" or b["sport"] != sport or not x:
+            continue
+        sc = {y["name"]: float(y["score"]) for y in x["scores"]}
+        hs, w = sc.get(x["home_team"]), sc.get(x["away_team"])
+        if hs is None or w is None:
+            continue
+        winner = x["home_team"] if hs > w else x["away_team"] if w > hs else "Draw"
+        settle_bet(b, "ganada" if winner == b["outcome_key"] else "perdida")
+        settled_now.append((owner.get(id(b), "?"), b, f"{x['home_team']} {int(hs)}-{int(w)} {x['away_team']}"))
+
+
 def settle_bet(b: dict, result: str):
     b["status"] = result
     b["pnl"] = round(b["stake"] * (b["odds"] - 1) * (1 - b.get("com", 0.0)), 2) if result == "ganada" else (-b["stake"] if result == "perdida" else 0.0)
@@ -641,6 +699,42 @@ def run(password: str, force: bool = False):
         lsd.clear()
         lsd["day"] = today
     lab_scores_today = lsd
+    # 2a) fútbol: resultados gratis de football-data.org (no gasta créditos de cuotas)
+    fd = FootballData(s["fd_key"]) if s.get("fd_key") else None
+    fdl = state.setdefault("fd_last", {})
+    fd_done: dict[str, dict] = {}
+    if fd:
+        fd_sports = {b["sport"] for b in all_bets if b["status"] == "abierta" and b["sport"] in FD_CODES
+                     and pt(b["commence"]) < t - timedelta(hours=2, minutes=15)}
+        fd_sports |= {e[0] for e in labdata["events"].values() if e[0] in FD_CODES and e[5] is None
+                      and len(e) >= 8 and 135 < (t.timestamp() // 60 - e[1]) < 5 * 1440}
+        for sport in sorted(fd_sports):
+            if fdl.get(sport) and pt(fdl[sport]) > t - timedelta(minutes=50):
+                continue
+            needed = [(b["event_id"], *b["event"].split(" - ", 1), pt(b["commence"])) for b in all_bets
+                      if b["status"] == "abierta" and b["sport"] == sport and " - " in b["event"]
+                      and pt(b["commence"]) < t - timedelta(hours=2, minutes=15)]
+            seen_ids = {n[0] for n in needed}
+            needed += [(eid, e[6], e[7], datetime.fromtimestamp(e[1] * 60, UTC)) for eid, e in labdata["events"].items()
+                       if e[0] == sport and e[5] is None and len(e) >= 8 and eid not in seen_ids
+                       and 135 < (t.timestamp() // 60 - e[1]) < 5 * 1440]
+            try:
+                fd_done[sport] = fd_results(fd, sport, needed, t)
+                fdl[sport] = iso(t)
+            except Exception as e:
+                fdl[sport] = iso(t)
+                print("football-data.org falló para", sport, e)
+                if "403" in str(e) or "401" in str(e):
+                    report.append("⚠️ football-data.org rechaza la clave. Revísala en Ajustes; mientras, uso la otra API.")
+                    break
+            if fd.calls >= 8:          # su límite gratuito es de 10 consultas por minuto
+                break
+    for sport, res in fd_done.items():
+        lab_changed |= feed_results(labdata, res)
+        apply_scores(all_bets, sport, res, owner, settled_now)
+    # 2b) lo que no se haya podido cobrar así: The Odds API, que sí gasta créditos
+    due = {sp for sp in due if not (sp in fd_done and not any(
+        b["status"] == "abierta" and b["sport"] == sp and pt(b["commence"]) < t - timedelta(hours=8) for b in all_bets))}
     for sport in sorted(due):
         if not can_spend(state, odds):
             break
@@ -659,17 +753,7 @@ def run(password: str, force: bool = False):
             note(state, f"No pude leer resultados de {sport}: {e}")
             report.append(f"⚠️ No pude leer resultados de {h(sport)}: {h(e)}")
             continue
-        for b in all_bets:
-            x = res.get(b["event_id"])
-            if b["status"] != "abierta" or b["sport"] != sport or not x:
-                continue
-            sc = {y["name"]: float(y["score"]) for y in x["scores"]}
-            hs, w = sc.get(x["home_team"]), sc.get(x["away_team"])
-            if hs is None or w is None:
-                continue
-            winner = x["home_team"] if hs > w else x["away_team"] if w > hs else "Draw"
-            settle_bet(b, "ganada" if winner == b["outcome_key"] else "perdida")
-            settled_now.append((owner.get(id(b), "?"), b, f"{x['home_team']} {int(hs)}-{int(w)} {x['away_team']}"))
+        apply_scores(all_bets, sport, res, owner, settled_now)
 
     for name, Lg in state["ledgers"].items():
         for b in Lg["bets"]:
@@ -873,7 +957,7 @@ def run(password: str, force: bool = False):
     state["updated"] = iso(t)
     # ---- laboratorio: resultados pendientes (una consulta por deporte y día, si hay presupuesto)
     for sport in sorted(labm.unresolved_sports(labdata)):
-        if lab_scores_today.get(sport) or not can_spend(state, odds):
+        if lab_scores_today.get(sport) or not can_spend(state, odds) or (fd and sport in FD_CODES):
             continue
         try:
             res = {x["id"]: x for x in odds.scores(sport) if x.get("completed") and x.get("scores")}
