@@ -1,6 +1,25 @@
-2026-10-25T13:00:36Z
+2026-10-25T13:05:53Z
 fd: con clave
-op agotada: HTTP 401: {"error":401,"message":"invalid apiKey","code":"invalid_api_key"}
-oddspapi: usadas 0 en esta pasada, 0 este mes de 250 (agotada)
-cuotas: usadas 0, quedan None, pausa True ({"message":"Usage quota has been reached. See usage plans at)
-cobradas 0, abiertas 60, lab filas 538, gen 301
+op versión v4
+op deportes soccer=10, basketball=11, tennis=12, handball=22
+op ligas encontradas 13/15
+op mercados soccer=101, basketball=111, tennis=121, handball=223
+op casas sport888->888sport, bet365->bet365, betfair_ex_eu->betfair-ex, betfair_sb_uk->betfair.es, betsson->betsson, betway->betway, codere_it->codere.es, leovegas->leovegas, pinnacle->pinnacle, williamhill->williamhill, winamax_fr->winamax.de
+op soccer_spain_la_liga: error HTTP 400: {"error":{"message":"Invalid number of bookmakers specified.","code":"
+op soccer_spain_segunda_division: error HTTP 400: {"error":{"message":"Invalid number of bookmakers specified.","code":"
+op soccer_efl_champ: error HTTP 404: {"error":{"message":"No fixtures found for the specified criteria.","c
+op soccer_netherlands_eredivisie: error HTTP 400: {"error":{"message":"Invalid number of bookmakers specified.","code":"
+op soccer_portugal_primeira_liga: error HTTP 400: {"error":{"message":"Invalid number of bookmakers specified.","code":"
+op soccer_germany_bundesliga2: error HTTP 404: {"error":{"message":"No fixtures found for the specified criteria.","c
+op soccer_epl: error HTTP 400: {"error":{"message":"Invalid number of bookmakers specified.","code":"
+op soccer_italy_serie_a: error HTTP 400: {"error":{"message":"Invalid number of bookmakers specified.","code":"
+op soccer_germany_bundesliga: error HTTP 400: {"error":{"message":"Invalid number of bookmakers specified.","code":"
+op soccer_france_ligue_one: error HTTP 400: {"error":{"message":"Invalid number of bookmakers specified.","code":"
+op soccer_uefa_champs_league: 0 partidos
+op soccer_uefa_europa_league: 0 partidos
+op basketball_euroleague: error HTTP 400: {"error":{"message":"Invalid number of bookmakers specified.","code":"
+op basketball_nba: error HTTP 400: {"error":{"message":"Invalid number of bookmakers specified.","code":"
+op handball_germany_bundesliga: error HTTP 400: {"error":{"message":"Invalid number of bookmakers specified.","code":"
+oddspapi: usadas 17 en esta pasada, 17 este mes de 250
+cuotas: usadas 0, quedan None, pausa True
+cobradas 0, abiertas 60, lab filas 538, gen 331
