@@ -171,15 +171,32 @@ def http_json(url: str, data: bytes | None = None):
 
 # ============================ fuentes ============================
 
+class QuotaOut(Exception):
+    """La API rechaza las consultas (401): casi siempre, consultas del mes agotadas."""
+
+
 class Odds:
     BASE = "https://api.the-odds-api.com/v4"
 
-    def __init__(self, key: str):
-        self.key, self.remaining, self.used = key, None, 0
+    def __init__(self, key: str, paused: bool = False):
+        self.key, self.remaining, self.used, self.paused = key, None, 0, paused
+        self.quota_msg = ""
+
+    def _call(self, url: str):
+        if self.paused:
+            raise QuotaOut(self.quota_msg or "en pausa")
+        try:
+            return http_json(url)
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", "ignore")[:200]
+            if e.code in (401, 429):
+                self.paused, self.quota_msg = True, body
+                raise QuotaOut(body) from e
+            raise RuntimeError(f"HTTP {e.code}: {body}") from e
 
     def _get(self, path: str, q: dict):
         q = {"apiKey": self.key, **q}
-        data, h = http_json(f"{self.BASE}{path}?{urllib.parse.urlencode(q)}")
+        data, h = self._call(f"{self.BASE}{path}?{urllib.parse.urlencode(q)}")
         self.remaining = h.get("x-requests-remaining") or h.get("X-Requests-Remaining")
         self.used += 1
         return data or []
@@ -188,7 +205,7 @@ class Odds:
         """Partidos de la liga en la ventana. Esta consulta es gratuita (no gasta créditos)."""
         q = {"apiKey": self.key, "commenceTimeFrom": frm.strftime("%Y-%m-%dT%H:%M:%SZ"),
              "commenceTimeTo": to.strftime("%Y-%m-%dT%H:%M:%SZ")}
-        data, _ = http_json(f"{self.BASE}/sports/{sport}/events?{urllib.parse.urlencode(q)}")
+        data, _ = self._call(f"{self.BASE}/sports/{sport}/events?{urllib.parse.urlencode(q)}")
         return len(data or [])
 
     def odds(self, sport: str, books: list[str], frm: datetime | None = None, to: datetime | None = None):
@@ -204,7 +221,7 @@ class Odds:
 
     def active_sports(self) -> list[str]:
         """Lista de competiciones activas. Gratuita."""
-        data, _ = http_json(f"{self.BASE}/sports/?{urllib.parse.urlencode({'apiKey': self.key})}")
+        data, _ = self._call(f"{self.BASE}/sports/?{urllib.parse.urlencode({'apiKey': self.key})}")
         return [x["key"] for x in (data or []) if x.get("active") and not x.get("has_outrights")]
 
     def scores(self, sport: str):
@@ -518,12 +535,20 @@ def autopilot(state: dict) -> tuple[str | None, list[str]]:
 
 def budget(state: dict, odds: "Odds", t: datetime) -> dict:
     """Reparte los créditos que quedan entre los días que faltan de mes, para no quedarse sin ellos."""
-    day = t.astimezone(MAD).strftime("%Y-%m-%d")
+    loc = t.astimezone(MAD)
+    day = loc.strftime("%Y-%m-%d")
     b = state.get("budget") or {}
-    rem = int(odds.remaining) if str(odds.remaining or "").isdigit() else None
+    raw = odds.remaining if odds.remaining is not None else state.get("credits")
+    rem = int(raw) if str(raw or "").isdigit() else None
     if b.get("day") != day and rem is not None:
-        nxt = (t.astimezone(MAD).replace(day=28) + timedelta(days=4)).replace(day=1)
-        days_left = max(1, (nxt.date() - t.astimezone(MAD).date()).days)
+        dom = state.get("quota_reset_dom")            # día del mes en que se renuevan (se aprende solo)
+        if dom:
+            nxt = loc.replace(day=min(dom, 28))
+            if nxt.date() <= loc.date():
+                nxt = (loc.replace(day=28) + timedelta(days=4)).replace(day=min(dom, 28))
+        else:
+            nxt = (loc.replace(day=28) + timedelta(days=4)).replace(day=1)
+        days_left = max(5 if not dom else 1, (nxt.date() - loc.date()).days)
         b = {"day": day, "start": rem, "allow": max(4, (rem - 10) // days_left), "warned": False}
         state["budget"] = b
     return b
@@ -531,7 +556,10 @@ def budget(state: dict, odds: "Odds", t: datetime) -> dict:
 
 def can_spend(state: dict, odds: "Odds") -> bool:
     b = state.get("budget") or {}
-    rem = int(odds.remaining) if str(odds.remaining or "").isdigit() else None
+    if getattr(odds, "paused", False):
+        return False
+    raw = odds.remaining if odds.remaining is not None else state.get("credits")
+    rem = int(raw) if str(raw or "").isdigit() else None
     if rem is None or not b:
         return True
     if rem <= 10:
@@ -578,7 +606,9 @@ def run(password: str, force: bool = False):
         save(state, password)
         return
 
-    odds = Odds(s["odds_api_key"])
+    quota = state.setdefault("quota", {})
+    paused = bool(quota.get("retry_at")) and t < pt(quota["retry_at"])
+    odds = Odds(s["odds_api_key"], paused=paused)
     books = s.get("casas") or []
     allowed = set(books)
     all_bets = [b for L in state["ledgers"].values() for b in L["bets"]]
@@ -597,18 +627,35 @@ def run(password: str, force: bool = False):
     settled_now: list[tuple[str, dict, str]] = []     # (cartera, apuesta, marcador)
     owner = {id(b): name for name, Lg in state["ledgers"].items() for b in Lg["bets"]}
     due = {b["sport"] for b in all_bets if b["status"] == "abierta" and pt(b["commence"]) < t - timedelta(hours=2, minutes=30)}
+    # cada consulta de resultados cuesta 2 créditos: como mucho una cada 3 h por competición,
+    # y si la API no da resultados de esa competición, se deja de preguntar 24 h
+    sl = state.setdefault("scores_last", {})
+    nos = state.setdefault("no_scores", {})
+    due = {sp for sp in due
+           if not (sl.get(sp) and pt(sl[sp]) > t - timedelta(hours=3))
+           and not (nos.get(sp) and pt(nos[sp]) > t - timedelta(hours=24))}
+    budget(state, odds, t)
     today = t.astimezone(MAD).strftime("%Y-%m-%d")
     lsd = state.setdefault("lab_scores", {})
     if lsd.get("day") != today:
         lsd.clear()
         lsd["day"] = today
     lab_scores_today = lsd
-    for sport in due:
+    for sport in sorted(due):
+        if not can_spend(state, odds):
+            break
         try:
-            res = {x["id"]: x for x in odds.scores(sport) if x.get("completed") and x.get("scores")}
+            raw_scores = odds.scores(sport)
+            sl[sport] = iso(t)
+            res = {x["id"]: x for x in raw_scores if x.get("completed") and x.get("scores")}
+            if not raw_scores:
+                nos[sport] = iso(t)
             lab_changed |= feed_results(labdata, res)
             lab_scores_today[sport] = True
+        except QuotaOut:
+            break
         except Exception as e:
+            sl[sport] = iso(t)
             note(state, f"No pude leer resultados de {sport}: {e}")
             report.append(f"⚠️ No pude leer resultados de {h(sport)}: {h(e)}")
             continue
@@ -661,9 +708,13 @@ def run(password: str, force: bool = False):
         leagues.remove("tennis_all")
         try:
             leagues += [k for k in odds.active_sports() if k.startswith("tennis_")]
+        except QuotaOut:
+            pass
         except Exception as e:
             report.append(f"⚠️ No pude leer los torneos de tenis activos: {h(e)}")
     budget(state, odds, t)
+    if odds.paused:
+        full = False
     if full and not force and not can_spend(state, odds):
         full = False
         if not state["budget"].get("warned"):
@@ -689,6 +740,8 @@ def run(password: str, force: bool = False):
                     scan_summary.append((sport, 0, 0, 0))
                     continue
                 ref = reference(odds.odds(sport, books, frm, to), a["metodo"])
+        except QuotaOut:
+            break
         except Exception as e:
             note(state, f"No pude leer cuotas de {sport}: {e}")
             report.append(f"⚠️ No pude leer cuotas de {h(sport)}: {h(e)}")
@@ -754,6 +807,8 @@ def run(password: str, force: bool = False):
                 lines.append(f"• {h(sel)} a {o:.2f} en {h(book)} (valor {pc(ms[0][1]['ev'])})")
                 lines.append("   " + h(", ".join(f"{mn} {b['stake']:.2f}€".replace(".", ",") for mn, b in ms)))
         report.append("\n".join(lines))
+    if full and odds.paused and not scan_summary:
+        full = False                      # se quedó sin consultas al empezar: no hay búsqueda que contar
     if full:
         state["last_scan"] = iso(t)
         names = {"soccer_spain_la_liga": "LaLiga", "soccer_epl": "Premier", "soccer_uefa_champs_league": "Champions",
@@ -796,7 +851,25 @@ def run(password: str, force: bool = False):
             report.append("📊 <b>Resumen del día</b> (de más a menos ganancia)\n" + "\n".join(r[1] for r in rows))
         state["last_summary"] = loc.strftime("%Y-%m-%d")
 
-    state["credits"] = odds.remaining
+    # ---- consultas agotadas: pausa de 6 h entre intentos y un solo aviso
+    if odds.remaining is not None:
+        prev = state.get("credits")
+        if str(prev or "").isdigit() and int(odds.remaining) > int(prev) + 50:
+            state["quota_reset_dom"] = t.astimezone(MAD).day       # se han renovado: aprendo el día
+        state["credits"] = odds.remaining
+    if odds.paused and not paused:
+        quota["retry_at"] = iso(t + timedelta(hours=6))
+        if not quota.get("since"):
+            quota["since"] = iso(t)
+            report.append("💳 <b>Se han acabado las consultas de cuotas del mes</b> (la API responde «no autorizado»).\n"
+                          "El bot sigue en marcha: el laboratorio sigue aprendiendo con lo que ya tiene y las apuestas "
+                          "pendientes se cobrarán cuando vuelvan las consultas. Lo reintento solo cada 6 h y te aviso "
+                          "cuando funcione. Si no vuelve en unos días, revisa la clave en Ajustes."
+                          + (f"\nMensaje de la API: {h(odds.quota_msg)}" if odds.quota_msg else ""))
+    elif not odds.paused and quota.get("since") and odds.used > 0:
+        state["quota_reset_dom"] = state.get("quota_reset_dom") or t.astimezone(MAD).day
+        quota.clear()
+        report.append("✅ Vuelven a funcionar las consultas de cuotas. El bot retoma las búsquedas.")
     state["updated"] = iso(t)
     # ---- laboratorio: resultados pendientes (una consulta por deporte y día, si hay presupuesto)
     for sport in sorted(labm.unresolved_sports(labdata)):

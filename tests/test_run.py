@@ -24,21 +24,34 @@ def ev(eid, start, pin, unibet):
 class FakeOdds:
     events, scores_data, calls = [], [], []
 
-    def __init__(self, key):
-        self.remaining, self.used = "480", 0
+    out_of_credits = False
+
+    def __init__(self, key, paused=False):
+        self.remaining, self.used, self.paused, self.quota_msg = "480", 0, paused, ""
+
+    def _check(self):
+        if self.paused or FakeOdds.out_of_credits:
+            self.paused = True
+            raise run.QuotaOut("Usage quota has been reached")
 
     def events_count(self, sport, frm, to):
+        self._check()
         return len(FakeOdds.events) if sport == "soccer_spain_la_liga" else 0
 
     def odds(self, sport, books, frm=None, to=None):
+        self._check()
         FakeOdds.calls.append(("odds", sport))
+        self.used += 1
         return FakeOdds.events if sport == "soccer_spain_la_liga" else []
 
     def active_sports(self):
+        self._check()
         return ["tennis_atp_paris_masters", "soccer_spain_la_liga"]
 
     def scores(self, sport):
+        self._check()
         FakeOdds.calls.append(("scores", sport))
+        self.used += 1
         return FakeOdds.scores_data
 
 
@@ -302,3 +315,50 @@ class LabFlow(unittest.TestCase):
         self.assertTrue(st["ledgers"]["f_lab_abc123"]["bets"])          # ya apuesta en ficticio
         self.assertTrue(any("aprobado" in m for m in self.sent))
         self.assertIn("lab_abc123", st["lab_summary"]["names"])
+
+
+class Credits(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        run.DATA = Path(self.tmp.name)
+        run.Odds = FakeOdds
+        FakeOdds.out_of_credits = False
+        self.sent = []
+        run.telegram = lambda s, t: self.sent.append(t)
+        (run.DATA / "settings.enc").write_text(run.encrypt({"odds_api_key": "k", "ligas": ["soccer_spain_la_liga"],
+                                                            "casas": ["unibet_fr"]}, PW))
+        past = (datetime.now(UTC) - timedelta(hours=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        bet = {"id": "q", "status": "abierta", "pnl": None, "sport": "tennis_atp_paris_masters", "event_id": "z",
+               "event": "A - B", "stake": 2, "odds": 2.0, "selection": "A", "outcome_key": "A", "commence": past,
+               "created": past, "settled": None, "book": "x"}
+        state = {"version": 1, "ledgers": {"real": {"bets": []}, "f_valor": {"bets": [bet]}}, "snapshots": {},
+                 "last_scan": run.iso(datetime.now(UTC)), "applied": [], "log": []}
+        (run.DATA / "state.enc").write_text(run.encrypt(state, PW))
+        FakeOdds.events, FakeOdds.scores_data, FakeOdds.calls = [], [], []
+
+    def tearDown(self):
+        FakeOdds.out_of_credits = False
+        self.tmp.cleanup()
+
+    def test_results_are_asked_at_most_every_3h(self):
+        run.run(PW)
+        run.run(PW)
+        run.run(PW)
+        self.assertEqual(FakeOdds.calls.count(("scores", "tennis_atp_paris_masters")), 1)
+
+    def test_out_of_credits_pauses_and_warns_once(self):
+        FakeOdds.out_of_credits = True
+        run.run(PW)
+        run.run(PW)
+        st = run.decrypt((run.DATA / "state.enc").read_text(), PW)
+        self.assertTrue(st["quota"]["retry_at"])
+        warn = [m for m in self.sent if "Se han acabado" in m]
+        self.assertEqual(len(warn), 1)
+        self.assertFalse(any("No pude leer" in m for m in self.sent))
+        # pasan las 6 h y vuelve a haber consultas
+        st["quota"]["retry_at"] = run.iso(datetime.now(UTC) - timedelta(minutes=1))
+        st["scores_last"] = {}
+        (run.DATA / "state.enc").write_text(run.encrypt(st, PW))
+        FakeOdds.out_of_credits = False
+        run.run(PW)
+        self.assertTrue(any("Vuelven a funcionar" in m for m in self.sent))
