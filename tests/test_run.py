@@ -518,3 +518,33 @@ class OddsPapiChain(unittest.TestCase):
         run.run(PW, force=True)
         st = run.decrypt((run.DATA / "state.enc").read_text(), PW)
         self.assertEqual(len(st["ledgers"]["f_valor"]["bets"]), 1)
+
+
+class OddsPapiOneBookPerCall(unittest.TestCase):
+    def test_adapts_to_one_bookmaker_per_call(self):
+        start = datetime.now(UTC) + timedelta(hours=5)
+        base = fake_op_get(start)
+        seen = []
+
+        def strict(self, path, **q):
+            if path == "odds-by-tournaments":
+                seen.append(q["bookmakers"])
+                if "," in q["bookmakers"]:
+                    raise opm.OPError('HTTP 400: {"error":{"message":"Invalid number of bookmakers specified."}}')
+            return base(self, path, **q)
+        orig = opm.OddsPapi._get
+        opm.OddsPapi._get = strict
+        try:
+            c = {}
+            o = opm.OddsPapi("k", c)
+            o.discover(datetime.now(UTC))
+            evs = o.odds("soccer_spain_la_liga", ["bet365", "winamax_fr", "betfair_sb_uk", "betfair_ex_eu"],
+                         datetime.now(UTC), datetime.now(UTC) + timedelta(days=1))
+        finally:
+            opm.OddsPapi._get = orig
+        self.assertEqual(c["gs"], 1)
+        self.assertEqual(evs[0]["home_team"], "Real Betis Balompié")
+        self.assertIn("bet365", {b["key"] for b in evs[0]["bookmakers"]})
+        singles = [x for x in seen if "," not in x]
+        self.assertEqual(singles[:3], ["pinnacle", "bet365.es", "winamax.es"])     # Pinnacle + 2 casas prioritarias
+        self.assertEqual(len(singles), 3)

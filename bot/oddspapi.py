@@ -50,6 +50,12 @@ BOOK_NAMES = {
 }
 
 
+# orden de importancia de tus casas cuando el plan obliga a pedirlas de una en una
+PRIORITY = ["pinnacle", "bet365", "winamax_fr", "betfair_sb_uk", "betfair_ex_eu", "williamhill", "sport888",
+            "betway", "leovegas", "betsson", "codere_it"]
+MAX_BOOKS_IF_ONE = 2
+
+
 class OPError(Exception):
     pass
 
@@ -200,9 +206,12 @@ class OddsPapi:
                     # «betfair» a secas no debe confundirse con el exchange
                     if our == "betfair_sb_uk" and "exchange" in name:
                         continue
-                    better = dom.endswith(".es") or (our not in books)
-                    if better:
-                        books[our] = {"slug": slug, "title": b.get("bookmakerName"), "es": dom.endswith(".es")}
+                    def rank(sl, dm):
+                        x = f"{sl} {dm}".lower()
+                        return 3 if ".es" in x else 2 if ".fr" in x and our == "winamax_fr" else 1 if "." not in sl else 0
+                    if our not in books or rank(slug, dom) > books[our]["rank"]:
+                        books[our] = {"slug": slug, "title": b.get("bookmakerName") or slug, "es": ".es" in f"{slug} {dom}",
+                                      "rank": rank(slug, dom)}
         notes.append("casas " + ", ".join(f"{k}->{v['slug']}{' (.es)' if v['es'] else ''}" for k, v in books.items()))
         c.update(ts=now.isoformat(), sports=sid, tours=tours, markets=markets, books=books)
         return notes
@@ -224,21 +233,49 @@ class OddsPapi:
             data = self._get("fixtures/odds/main", tournamentId=tid, bookmakers=",".join(slug_to_us)) or []
             return convert(data, mk, slug_to_us, frm, to)
         # v4: nombres en /fixtures; cuotas en /odds-by-tournaments (máx. 3 casas, el exchange solo)
-        fx = self._get("fixtures", tournamentId=tid, statusId=0,
-                       **{"from": frm.strftime("%Y-%m-%dT%H:%M:%SZ"), "to": to.strftime("%Y-%m-%dT%H:%M:%SZ")}) or []
+        try:
+            fx = self._get("fixtures", tournamentId=tid, statusId=0,
+                           **{"from": frm.strftime("%Y-%m-%dT%H:%M:%SZ"), "to": to.strftime("%Y-%m-%dT%H:%M:%SZ")}) or []
+        except OPError as e:
+            if "404" in str(e):          # «no hay partidos»: no es un error
+                return []
+            raise
         fx = {f["fixtureId"]: f for f in fx if f.get("fixtureId")}
         if not fx:
             return []
-        slugs = list(slug_to_us)
-        exch = [x for x in slugs if "betfair-ex" in x or x.endswith("-ex")]
-        rest = [x for x in slugs if x not in exch]
-        groups = [rest[i:i + 3] for i in range(0, len(rest), 3)] + [[x] for x in exch]
+        gs = int(c.get("gs") or 3)                  # casas por consulta que acepta tu plan (se aprende solo)
+        pin = [sl for sl, (k, _) in slug_to_us.items() if k == "pinnacle"]
+        mine = [sl for sl, (k, _) in sorted(slug_to_us.items(), key=lambda kv: PRIORITY.index(kv[1][0])
+                                            if kv[1][0] in PRIORITY else 99) if k != "pinnacle"]
+        if gs == 1:
+            mine = mine[:MAX_BOOKS_IF_ONE]            # con 1 casa por consulta, solo las más útiles
         merged: dict = {}
-        for g in groups:
-            for item in self._get("odds-by-tournaments", tournamentIds=tid, bookmakers=",".join(g)) or []:
+
+        def fetch(group):
+            for item in self._get("odds-by-tournaments", tournamentIds=tid, bookmakers=",".join(group)) or []:
                 fid = item.get("fixtureId")
                 if fid in fx:
                     merged.setdefault(fid, {}).update(item.get("bookmakerOdds") or {})
+
+        slugs = pin + mine
+        i = 0
+        while i < len(slugs):
+            exch = "betfair-ex" in slugs[i] or slugs[i].endswith("-ex")
+            group = [slugs[i]] if exch else [x for x in slugs[i:i + gs] if not ("betfair-ex" in x or x.endswith("-ex"))]
+            try:
+                fetch(group)
+                i += len(group)
+            except OPError as e:
+                if "number of bookmakers" in str(e).lower() and gs > 1:
+                    gs -= 1
+                    c["gs"] = gs
+                    if gs == 1:
+                        slugs = pin + mine[:MAX_BOOKS_IF_ONE]
+                    continue
+                if "404" in str(e):
+                    i += len(group)
+                    continue
+                raise
         return convert_v4(fx, merged, mk, slug_to_us, frm, to)
 
     def settlement(self, fixture_id: str, sport: str = "soccer") -> dict | None:
