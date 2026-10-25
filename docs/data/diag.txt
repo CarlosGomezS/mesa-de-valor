@@ -1,4 +1,6 @@
-2026-10-25T12:38:55Z
+2026-10-25T13:00:36Z
 fd: con clave
-cuotas: usadas 0, quedan None, pausa True
-cobradas 0, abiertas 60, lab filas 538, gen 271
+op agotada: HTTP 401: {"error":401,"message":"invalid apiKey","code":"invalid_api_key"}
+oddspapi: usadas 0 en esta pasada, 0 este mes de 250 (agotada)
+cuotas: usadas 0, quedan None, pausa True ({"message":"Usage quota has been reached. See usage plans at)
+cobradas 0, abiertas 60, lab filas 538, gen 301
