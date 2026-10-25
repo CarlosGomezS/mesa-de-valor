@@ -1,4 +1,5 @@
-2026-10-25T06:52:28Z
+2026-10-25T12:01:15Z
 fd: con clave
+fd soccer_spain_la_liga: pedidos 9, encontrados 1
 cuotas: usadas 0, quedan None, pausa True
-cobradas 0, abiertas 69, lab filas 538, gen 211
+cobradas 9, abiertas 60, lab filas 538, gen 241
