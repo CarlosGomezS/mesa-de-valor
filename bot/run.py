@@ -721,8 +721,10 @@ def run(password: str, force: bool = False):
             try:
                 fd_done[sport] = fd_results(fd, sport, needed, t)
                 fdl[sport] = iso(t)
+                DIAG.append(f"fd {sport}: pedidos {len(needed)}, encontrados {len(fd_done[sport])}")
             except Exception as e:
                 fdl[sport] = iso(t)
+                DIAG.append(f"fd {sport}: error {type(e).__name__} {str(e)[:80]}")
                 print("football-data.org falló para", sport, e)
                 if "403" in str(e) or "401" in str(e):
                     report.append("⚠️ football-data.org rechaza la clave. Revísala en Ajustes; mientras, uso la otra API.")
@@ -991,8 +993,13 @@ def run(password: str, force: bool = False):
     if lab_changed:
         lab_path().write_bytes(encrypt_bytes(labm.pack(labdata), password))
 
+    DIAG.append(f"cuotas: usadas {odds.used}, quedan {odds.remaining or state.get('credits')}, pausa {odds.paused}"
+                f"{' (' + odds.quota_msg[:60] + ')' if odds.quota_msg else ''}")
+    DIAG.append(f"cobradas {len(settled_now)}, abiertas {sum(1 for b in all_bets if b['status'] == 'abierta')}, "
+                f"lab filas {len(labdata['rows'])}, gen {st_lab.get('gen', 0)}")
+    write_diag(t)
     idle = (not full and not settled_now and not close_updates and not inbox_msgs and not report
-            and not real_msgs and odds.used == 0)
+            and not real_msgs and odds.used == 0 and not lab_changed)
     if idle:          # nada nuevo: no se guarda, así no se publica la web cada 10 minutos
         print("Pasada sin cambios")
         return
@@ -1002,6 +1009,17 @@ def run(password: str, force: bool = False):
         telegram(s, m_)
     if report:
         telegram_long(s, report)
+
+
+DIAG: list[str] = []
+
+
+def write_diag(t: datetime):
+    """Parte técnico mínimo (sin claves, importes ni apuestas) para poder revisar el bot desde fuera."""
+    try:
+        (DATA / "diag.txt").write_text(f"{iso(t)}\n" + "\n".join(DIAG) + "\n")
+    except Exception:
+        pass
 
 
 def save(state, password):
@@ -1019,6 +1037,8 @@ if __name__ == "__main__":
     except Exception as e:  # un fallo no debe romper la ejecución de GitHub (eso manda correos)
         import traceback
         traceback.print_exc()
+        DIAG.append("FALLO: " + traceback.format_exc()[-600:])
+        write_diag(now())
         try:
             s_ = merge(DEFAULT_SETTINGS, read_enc("settings.enc", pw, {}))
             telegram(s_, f"⚠️ <b>Error del bot</b>: {h(type(e).__name__)}: {h(e)}\nVolverá a intentarlo en la próxima pasada.")
