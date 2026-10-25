@@ -1,12 +1,5 @@
-2026-10-25T13:08:37Z
+2026-10-25T13:18:09Z
 fd: con clave
-op soccer_spain_la_liga: 4 partidos
-op soccer_spain_segunda_division: 4 partidos
-op soccer_efl_champ: 0 partidos
-op soccer_netherlands_eredivisie: 4 partidos
-op soccer_portugal_primeira_liga: 4 partidos
-op soccer_germany_bundesliga2: 0 partidos
-op soccer_epl: 5 partidos
-oddspapi: usadas 20 en esta pasada, 37 este mes de 250
+oddspapi: usadas 0 en esta pasada, 37 este mes de 250
 cuotas: usadas 0, quedan None, pausa True
-cobradas 0, abiertas 60, lab filas 550, gen 361
+cobradas 0, abiertas 60, lab filas 550, gen 391
