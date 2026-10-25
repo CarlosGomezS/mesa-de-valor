@@ -1,7 +1,7 @@
-2026-10-25T14:39:06Z
+2026-10-25T16:01:26Z
 fd: con clave
-fd soccer_italy_serie_a: pedidos 1, encontrados 1
-fd soccer_netherlands_eredivisie: pedidos 1, encontrados 1
+fd soccer_netherlands_eredivisie: pedidos 4, encontrados 4
+fd soccer_spain_la_liga: pedidos 12, encontrados 1
 oddspapi: usadas 0 en esta pasada, 37 este mes de 250
 cuotas: usadas 0, quedan None, pausa True
-cobradas 2, abiertas 58, lab filas 550, gen 421
+cobradas 14, abiertas 44, lab filas 550, gen 451
