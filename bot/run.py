@@ -894,6 +894,9 @@ def run(password: str, force: bool = False):
             report.append(f"💳 Hoy ya se han usado las consultas previstas ({state['budget']['allow']}). "
                           f"Sigo cobrando resultados, y mañana vuelvo a buscar. Quedan {odds.remaining}.")
     sports = list(dict.fromkeys((leagues if full else []) + list(soon)))
+    DIAG.append(f"busqueda: completa={full} ultima={state.get('last_scan')} cada={a['horas_entre_busquedas']}h "
+                f"oddsapi_pausa={odds.paused} oddspapi_ok={op_ok()} (dia {opb.get('used', 0) - opb.get('used_start', 0)}"
+                f"/{opb.get('allow')}) ligas={len(leagues)}")
     scan_summary = []
     clv_now: dict[str, list] = {}
     new_fict: dict[str, list] = {}
