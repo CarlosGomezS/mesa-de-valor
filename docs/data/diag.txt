@@ -1,6 +1,6 @@
-2026-10-26T06:57:37Z
+2026-10-26T07:18:13Z
 fd: con clave
-op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
-oddspapi: usadas 0 en esta pasada, 64 este mes de 250
-cuotas: usadas 0, quedan None, pausa True ({"message":"Usage quota has been reached. See usage plans at)
-cobradas 0, abiertas 30, lab filas 566, gen 601
+op soccer_spain_la_liga: 1 partidos
+oddspapi: usadas 4 en esta pasada, 68 este mes de 250
+cuotas: usadas 0, quedan None, pausa True
+cobradas 0, abiertas 30, lab filas 566, gen 631
