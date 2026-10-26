@@ -1,6 +1,5 @@
-2026-10-26T07:18:13Z
+2026-10-26T07:18:44Z
 fd: con clave
-op soccer_spain_la_liga: 1 partidos
-oddspapi: usadas 4 en esta pasada, 68 este mes de 250
+oddspapi: usadas 0 en esta pasada, 68 este mes de 250
 cuotas: usadas 0, quedan None, pausa True
-cobradas 0, abiertas 30, lab filas 566, gen 631
+cobradas 0, abiertas 30, lab filas 566, gen 661
