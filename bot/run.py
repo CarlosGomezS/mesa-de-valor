@@ -836,21 +836,38 @@ def run(password: str, force: bool = False):
             continue
         apply_scores(all_bets, sport, res, owner, settled_now)
 
-    # 2c) apuestas que vinieron de OddsPapi y nadie más ha cobrado: su propio resultado (1 consulta por partido)
+    # 2c) lo que nadie más ha cobrado (baloncesto, balonmano, tenis…): resultado de OddsPapi.
+    #     Si la apuesta vino de otra fuente, primero se busca el partido en OddsPapi por nombres y hora.
     op_tries = 0
+    odds_api_can_settle = not odds.paused and can_spend(state, odds)
     for b in sorted(all_bets, key=lambda x: x["commence"]):
-        if op_tries >= 4 or not op_ok():
+        if op_tries >= 8 or not op_ok():
             break
-        if (b["status"] != "abierta" or not str(b["event_id"]).startswith("op_")
-                or pt(b["commence"]) > t - timedelta(hours=4)
-                or (b.get("op_try") and pt(b["op_try"]) > t - timedelta(hours=6))):
+        if (b["status"] != "abierta" or pt(b["commence"]) > t - timedelta(hours=3, minutes=30)
+                or (b.get("op_try") and pt(b["op_try"]) > t - timedelta(hours=4))):
             continue
-        fid = b["event_id"][3:]
-        same = [x for x in all_bets if x["event_id"] == b["event_id"] and x["status"] == "abierta"]
+        is_op = str(b["event_id"]).startswith("op_")
+        if not is_op and (odds_api_can_settle or (fd and b["sport"] in FD_CODES and pt(b["commence"]) > t - timedelta(hours=10))):
+            continue          # otra fuente gratuita o con cupo lo cobrará
+        same = [x for x in all_bets if x["status"] == "abierta" and
+                (x["event_id"] == b["event_id"] or same_match(x, *(bet_teams(b) or ("", "")), b["commence"]))]
         for x in same:
             x["op_try"] = iso(t)
-        op_tries += 1
         try:
+            fid = b["event_id"][3:] if is_op else b.get("op_fid")
+            if not fid:
+                tm = bet_teams(b)
+                if not tm:
+                    continue
+                op_tries += 1
+                fid = op.find_fixture(b["sport"], tm[0], tm[1], pt(b["commence"]),
+                                      lambda h1, a1, s1, h2, a2, s2: st.same_event(h1, a1, s1, h2, a2, s2, max_minutes=120))
+                for x in same:
+                    x["op_fid"] = fid
+                if not fid:
+                    DIAG.append(f"op resultado: no encuentro {b['event'][:40]}")
+                    continue
+            op_tries += 1
             r = op.settlement(fid, b["sport"].split("_")[0])
         except Exception as e:
             DIAG.append(f"op resultado: {str(e)[:60]}")
@@ -864,7 +881,7 @@ def run(password: str, force: bool = False):
 
     for name, Lg in state["ledgers"].items():
         for b in Lg["bets"]:
-            if b["status"] == "abierta" and pt(b["commence"]) < t - timedelta(hours=48):
+            if b["status"] == "abierta" and pt(b["commence"]) < t - timedelta(hours=72):
                 settle_bet(b, "nula")
                 settled_now.append((name, b, b["event"] + " (sin resultado: anulada, se devuelve el importe)"))
     if settled_now:

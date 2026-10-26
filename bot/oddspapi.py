@@ -278,6 +278,39 @@ class OddsPapi:
                 raise
         return convert_v4(fx, merged, mk, slug_to_us, frm, to)
 
+    def find_fixture(self, league: str, home: str, away: str, start: datetime, same) -> str | None:
+        """Busca en OddsPapi el partido de una apuesta hecha con otra fuente (por nombres y hora)."""
+        c = self.cache
+        sport = league.split("_")[0]
+        frm, to = start - timedelta(hours=6), start + timedelta(hours=6)
+        tid = c.get("tours", {}).get(league)
+        sid = c.get("sports", {}).get(sport)
+        key = f"{tid or 's' + str(sid)}|{frm:%Y%m%d%H}"
+        mem = self.__dict__.setdefault("_fx_mem", {})
+        if key not in mem:
+            q = {"from": frm.strftime("%Y-%m-%dT%H:%M:%SZ"), "to": to.strftime("%Y-%m-%dT%H:%M:%SZ")}
+            if tid:
+                q["tournamentId"] = tid
+            elif sid:
+                q["sportId"] = sid
+            else:
+                return None
+            try:
+                mem[key] = self._get("fixtures", **q) or []
+            except OPError as e:
+                if "404" in str(e):
+                    mem[key] = []
+                else:
+                    raise
+        for f in mem[key]:
+            try:
+                fs = datetime.fromisoformat(str(f.get("startTime")).replace("Z", "+00:00")).astimezone(UTC)
+            except ValueError:
+                continue
+            if same(f.get("participant1Name") or "", f.get("participant2Name") or "", fs, home, away, start):
+                return str(f.get("fixtureId"))
+        return None
+
     def settlement(self, fixture_id: str, sport: str = "soccer") -> dict | None:
         """Resultado final de un partido (para cobrar apuestas que no encuentran otras fuentes)."""
         if self.ver == 4:

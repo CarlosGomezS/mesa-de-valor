@@ -218,7 +218,7 @@ class Budget(unittest.TestCase):
         run.DATA = Path(tmp.name); run.Odds = FakeOdds; sent = []; run.telegram = lambda s, t: sent.append(t)
         FakeOdds.events = []; FakeOdds.scores_data = []
         (run.DATA / "settings.enc").write_text(run.encrypt({"odds_api_key": "k"}, PW))
-        old = (datetime.now(UTC) - timedelta(hours=50)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        old = (datetime.now(UTC) - timedelta(hours=74)).strftime("%Y-%m-%dT%H:%M:%SZ")
         bet = {"id": "q", "status": "abierta", "pnl": None, "sport": "tennis_atp_paris_masters", "event_id": "z", "event": "A - B",
                "stake": 2, "odds": 2.0, "selection": "A", "commence": old, "created": old, "settled": None}
         state = {"version": 1, "ledgers": {"real": {"bets": []}, "f_valor": {"bets": [bet]}}, "snapshots": {},
@@ -581,3 +581,45 @@ class SkipEmptyLeagues(unittest.TestCase):
             tmp.cleanup()
         odds_calls = [c for c in calls if c in ("fixtures", "odds-by-tournaments")]
         self.assertEqual(odds_calls, ["fixtures"])   # solo la Serie A (con partidos); LaLiga y Premier vacías: 0
+
+
+class SettleOtherSportsWithOddsPapi(unittest.TestCase):
+    def test_basketball_bet_from_odds_api_is_settled_by_oddspapi(self):
+        tmp = tempfile.TemporaryDirectory()
+        run.DATA = Path(tmp.name); run.Odds = FakeOdds; FakeOdds.out_of_credits = True
+        sent = []; run.telegram = lambda s, t: sent.append(t)
+        start = datetime.now(UTC) - timedelta(hours=5)
+        calls = []
+
+        def fake(self, path, **q):
+            self.calls += 1
+            calls.append(path)
+            if path == "fixtures":
+                return [{"fixtureId": "id55", "participant1Name": "Real Madrid Baloncesto", "participant2Name": "FC Barcelona",
+                         "startTime": start.strftime("%Y-%m-%dT%H:%M:%S.000Z"), "statusId": 2}]
+            if path == "settlements":
+                return {"fixtureId": "id55", "markets": {"111": {"outcomes": {
+                    "111": {"players": {"0": {"result": "WIN"}}}, "112": {"players": {"0": {"result": "LOSE"}}}}}}}
+            raise AssertionError(path)
+        orig = opm.OddsPapi._get
+        opm.OddsPapi._get = fake
+        try:
+            (run.DATA / "settings.enc").write_text(run.encrypt({"odds_api_key": "k", "op_key": "op", "ligas": []}, PW))
+            pstr = start.strftime("%Y-%m-%dT%H:%M:%SZ")
+            bet = {"id": "q", "status": "abierta", "pnl": None, "sport": "basketball_euroleague", "event_id": "oddsapi123",
+                   "event": "Real Madrid - Barcelona", "stake": 2, "odds": 1.8, "selection": "Real Madrid",
+                   "outcome_key": "Real Madrid", "commence": pstr, "created": pstr, "settled": None, "book": "x"}
+            state = {"version": 1, "ledgers": {"real": {"bets": []}, "f_valor": {"bets": [bet]}}, "snapshots": {},
+                     "last_scan": run.iso(datetime.now(UTC)), "applied": [], "log": [],
+                     "op_cache": {"ver": 4, "ts": datetime.now(UTC).isoformat(), "sports": {"basketball": 11},
+                                  "tours": {"basketball_euroleague": 138}, "markets": {"basketball": {"m": 111, "o": [111, 112]}},
+                                  "books": {}}}
+            (run.DATA / "state.enc").write_text(run.encrypt(state, PW))
+            run.run(PW)
+            b = run.decrypt((run.DATA / "state.enc").read_text(), PW)["ledgers"]["f_valor"]["bets"][0]
+        finally:
+            opm.OddsPapi._get = orig
+            FakeOdds.out_of_credits = False
+            tmp.cleanup()
+        self.assertEqual(calls, ["fixtures", "settlements"])
+        self.assertEqual((b["status"], b["pnl"]), ("ganada", 1.6))
