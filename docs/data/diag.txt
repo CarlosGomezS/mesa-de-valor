@@ -1,22 +1,5 @@
-2026-10-25T23:32:36Z
+2026-10-26T01:37:13Z
 fd: con clave
-fd soccer_portugal_primeira_liga: pedidos 1, encontrados 1
-fd soccer_spain_la_liga: pedidos 2, encontrados 2
-op soccer_spain_la_liga: 1 partidos
-op soccer_spain_segunda_division: 1 partidos
-op soccer_efl_champ: 0 partidos
-op soccer_netherlands_eredivisie: 0 partidos
-op soccer_portugal_primeira_liga: 0 partidos
-op soccer_germany_bundesliga2: 0 partidos
-op soccer_epl: 0 partidos
-op soccer_italy_serie_a: 7 partidos
-op soccer_germany_bundesliga: 0 partidos
-op soccer_france_ligue_one: 1 partidos
-op soccer_uefa_champs_league: 0 partidos
-op soccer_uefa_europa_league: 0 partidos
-op basketball_euroleague: 0 partidos
-op basketball_nba: 4 partidos
-op handball_germany_bundesliga: 0 partidos
-oddspapi: usadas 27 en esta pasada, 64 este mes de 250
+oddspapi: usadas 0 en esta pasada, 64 este mes de 250
 cuotas: usadas 0, quedan None, pausa True
-cobradas 1, abiertas 23, lab filas 566, gen 541
+cobradas 0, abiertas 30, lab filas 566, gen 571
