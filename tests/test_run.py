@@ -548,3 +548,36 @@ class OddsPapiOneBookPerCall(unittest.TestCase):
         singles = [x for x in seen if "," not in x]
         self.assertEqual(singles[:3], ["pinnacle", "bet365.es", "winamax.es"])     # Pinnacle + 2 casas prioritarias
         self.assertEqual(len(singles), 3)
+
+
+class SkipEmptyLeagues(unittest.TestCase):
+    def test_no_oddspapi_call_when_football_data_says_no_matches(self):
+        tmp = tempfile.TemporaryDirectory()
+        run.DATA = Path(tmp.name); run.Odds = FakeOdds; FakeOdds.out_of_credits = True
+        run.telegram = lambda s, t: None
+        start = datetime.now(UTC) + timedelta(hours=5)
+        calls = []
+        base = fake_op_get(start)
+
+        def counting(self, path, **q):
+            calls.append(path)
+            return base(self, path, **q)
+
+        class FakeFD:
+            def __init__(self, key): self.calls = 0
+            def finished(self, *a): return []
+            def upcoming(self, codes, frm, to):
+                return {c: (1 if c == "SA" else 0) for c in codes}       # solo la Serie A tiene partidos
+        orig_get, orig_fd = opm.OddsPapi._get, run.FootballData
+        opm.OddsPapi._get, run.FootballData = counting, FakeFD
+        try:
+            (run.DATA / "settings.enc").write_text(run.encrypt(
+                {"odds_api_key": "k", "op_key": "op", "fd_key": "fd", "casas": ["bet365"],
+                 "ligas": ["soccer_spain_la_liga", "soccer_epl", "soccer_italy_serie_a"]}, PW))
+            run.run(PW, force=True)
+        finally:
+            opm.OddsPapi._get, run.FootballData = orig_get, orig_fd
+            FakeOdds.out_of_credits = False
+            tmp.cleanup()
+        odds_calls = [c for c in calls if c in ("fixtures", "odds-by-tournaments")]
+        self.assertEqual(odds_calls, ["fixtures"])   # solo la Serie A (con partidos); LaLiga y Premier vacías: 0

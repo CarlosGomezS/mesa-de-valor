@@ -246,6 +246,25 @@ class FootballData:
     def __init__(self, key: str):
         self.key, self.calls = key, 0
 
+    def upcoming(self, codes: list[str], d_from: datetime, d_to: datetime) -> dict:
+        """Cuántos partidos por competición hay entre dos fechas. Gratis: sirve para no gastar consultas en ligas vacías."""
+        q = urllib.parse.urlencode({"competitions": ",".join(codes), "dateFrom": d_from.strftime("%Y-%m-%d"),
+                                    "dateTo": d_to.strftime("%Y-%m-%d")})
+        req = urllib.request.Request(f"{self.BASE}/matches?{q}", headers={"X-Auth-Token": self.key})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            self.calls += 1
+            matches = (json.loads(r.read().decode() or "{}") or {}).get("matches", [])
+        out = {c: 0 for c in codes}
+        for m in matches:
+            if m.get("status") not in ("SCHEDULED", "TIMED"):
+                continue
+            mt = pt(m["utcDate"])
+            if d_from <= mt <= d_to:
+                code = (m.get("competition") or {}).get("code")
+                if code in out:
+                    out[code] += 1
+        return out
+
     def finished(self, code: str, d_from: datetime, d_to: datetime) -> list[dict]:
         q = urllib.parse.urlencode({"status": "FINISHED", "dateFrom": d_from.strftime("%Y-%m-%d"),
                                     "dateTo": d_to.strftime("%Y-%m-%d")})
@@ -903,6 +922,7 @@ def run(password: str, force: bool = False):
     skipped = []
     real_msgs: list[str] = []
     op_warned = False
+    fd_up: dict = {}
 
     def get_ref(sport: str, frm: datetime, to: datetime, close: bool):
         """Cadena de fuentes: The Odds API y, si no puede, OddsPapi. None = ninguna disponible."""
@@ -917,6 +937,20 @@ def run(password: str, force: bool = False):
             except Exception as e:
                 note(state, f"No pude leer cuotas de {sport}: {e}")
                 DIAG.append(f"oddsapi {sport}: {str(e)[:80]}")
+        if op_ok() and sport in opm.LEAGUES and fd and sport in FD_CODES:
+            # antes de gastar una consulta de OddsPapi, football-data.org (gratis) dice si hay partidos
+            key_ = (frm.isoformat()[:13], to.isoformat()[:13])
+            if fd_up.get("key") != key_:
+                try:
+                    fd_up.clear()
+                    fd_up.update(key=key_, n=fd.upcoming(sorted(set(FD_CODES.values())), frm, to))
+                except Exception as e:
+                    fd_up.update(key=key_, n=None)
+                    DIAG.append(f"fd calendario: {str(e)[:60]}")
+            n_up = (fd_up.get("n") or {}).get(FD_CODES[sport])
+            if n_up == 0:
+                DIAG.append(f"op {sport}: sin partidos según football-data, no gasto consulta")
+                return {}
         if op_ok() and sport in opm.LEAGUES:
             try:
                 DIAG.extend("op " + n for n in op.discover(t))
