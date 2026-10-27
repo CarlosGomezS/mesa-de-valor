@@ -1,6 +1,28 @@
-2026-10-27T19:39:09Z
+2026-10-27T23:12:20Z
 fd: con clave
-busqueda: completa=False ultima=2026-10-26T23:40:11Z cada=8h oddsapi_pausa=True oddspapi_ok=False (dia 31/30) ligas=15
-oddspapi: usadas 0 en esta pasada, 99 este mes de 250
-cuotas: usadas 0, quedan None, pausa True
-cobradas 0, abiertas 21, lab filas 623, gen 961
+fd soccer_italy_serie_a: pedidos 4, encontrados 4
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+busqueda: completa=True ultima=2026-10-26T23:40:11Z cada=8h oddsapi_pausa=True oddspapi_ok=True (dia 0/30) ligas=15
+op soccer_spain_la_liga: sin partidos según football-data, no gasto consulta
+op soccer_spain_segunda_division: 0 partidos
+op soccer_efl_champ: sin partidos según football-data, no gasto consulta
+op soccer_netherlands_eredivisie: sin partidos según football-data, no gasto consulta
+op soccer_portugal_primeira_liga: sin partidos según football-data, no gasto consulta
+op soccer_germany_bundesliga2: 2 partidos
+op soccer_epl: sin partidos según football-data, no gasto consulta
+op soccer_italy_serie_a: 7 partidos
+op soccer_germany_bundesliga: sin partidos según football-data, no gasto consulta
+op soccer_france_ligue_one: sin partidos según football-data, no gasto consulta
+op soccer_uefa_champs_league: sin partidos según football-data, no gasto consulta
+op soccer_uefa_europa_league: 0 partidos
+op basketball_euroleague: 4 partidos
+op basketball_nba: 4 partidos
+op handball_germany_bundesliga: 0 partidos
+oddspapi: usadas 21 en esta pasada, 120 este mes de 250
+cuotas: usadas 0, quedan None, pausa True ({"message":"Usage quota has been reached. See usage plans at)
+cobradas 5, abiertas 16, lab filas 649, gen 991
