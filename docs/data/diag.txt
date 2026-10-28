@@ -1,4 +1,4 @@
-2026-10-28T02:17:29Z
+2026-10-28T04:48:47Z
 fd: con clave
 op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
 op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
@@ -7,4 +7,4 @@ op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
 busqueda: completa=False ultima=2026-10-27T23:12:20Z cada=8h oddsapi_pausa=True oddspapi_ok=True (dia 21/30) ligas=15
 oddspapi: usadas 0 en esta pasada, 120 este mes de 250
 cuotas: usadas 0, quedan None, pausa True
-cobradas 2, abiertas 14, lab filas 649, gen 1021
+cobradas 0, abiertas 14, lab filas 649, gen 1051
