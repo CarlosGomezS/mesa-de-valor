@@ -1,10 +1,15 @@
-2026-10-28T04:48:47Z
+2026-10-28T08:44:12Z
 fd: con clave
 op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
 op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
 op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
 op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
-busqueda: completa=False ultima=2026-10-27T23:12:20Z cada=8h oddsapi_pausa=True oddspapi_ok=True (dia 21/30) ligas=15
-oddspapi: usadas 0 en esta pasada, 120 este mes de 250
-cuotas: usadas 0, quedan None, pausa True
-cobradas 0, abiertas 14, lab filas 649, gen 1051
+busqueda: completa=True ultima=2026-10-27T23:12:20Z cada=8h oddsapi_pausa=True oddspapi_ok=True (dia 21/30) ligas=15
+op soccer_spain_la_liga: 1 partidos
+op soccer_spain_segunda_division: 0 partidos
+op soccer_efl_champ: 1 partidos
+op soccer_netherlands_eredivisie: sin partidos según football-data, no gasto consulta
+op soccer_portugal_primeira_liga: 0 partidos
+oddspapi: usadas 12 en esta pasada, 132 este mes de 250
+cuotas: usadas 0, quedan None, pausa True ({"message":"Usage quota has been reached. See usage plans at)
+cobradas 0, abiertas 14, lab filas 649, gen 1081
