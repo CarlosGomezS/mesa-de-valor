@@ -1,6 +1,6 @@
-2026-10-29T06:02:24Z
+2026-10-29T12:51:09Z
 fd: con clave
 busqueda: completa=False ultima=2026-10-29T00:20:08Z cada=8h oddsapi_pausa=True oddspapi_ok=False (dia 40/39) ligas=15
 oddspapi: usadas 0 en esta pasada, 172 este mes de 250
-cuotas: usadas 0, quedan None, pausa True
-cobradas 1, abiertas 19, lab filas 691, gen 1231
+cuotas: usadas 0, quedan None, pausa True ({"message":"Usage quota has been reached. See usage plans at)
+cobradas 0, abiertas 19, lab filas 691, gen 1261
