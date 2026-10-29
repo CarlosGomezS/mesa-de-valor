@@ -53,7 +53,7 @@ BOOK_NAMES = {
 # orden de importancia de tus casas cuando el plan obliga a pedirlas de una en una
 PRIORITY = ["pinnacle", "bet365", "winamax_fr", "betfair_sb_uk", "betfair_ex_eu", "williamhill", "sport888",
             "betway", "leovegas", "betsson", "codere_it"]
-MAX_BOOKS_IF_ONE = 2
+MAX_BOOKS_IF_ONE = 1      # Pinnacle + 1 casa por liga; la casa va alternando cada día entre las 2 principales
 
 
 class OPError(Exception):
@@ -248,7 +248,7 @@ class OddsPapi:
         mine = [sl for sl, (k, _) in sorted(slug_to_us.items(), key=lambda kv: PRIORITY.index(kv[1][0])
                                             if kv[1][0] in PRIORITY else 99) if k != "pinnacle"]
         if gs == 1:
-            mine = mine[:MAX_BOOKS_IF_ONE]            # con 1 casa por consulta, solo las más útiles
+            mine = self._rotate(mine)                 # con 1 casa por consulta, solo las más útiles
         merged: dict = {}
 
         def fetch(group):
@@ -270,13 +270,21 @@ class OddsPapi:
                     gs -= 1
                     c["gs"] = gs
                     if gs == 1:
-                        slugs = pin + mine[:MAX_BOOKS_IF_ONE]
+                        slugs = pin + self._rotate(mine)
                     continue
                 if "404" in str(e):
                     i += len(group)
                     continue
                 raise
         return convert_v4(fx, merged, mk, slug_to_us, frm, to)
+
+    @staticmethod
+    def _rotate(mine: list) -> list:
+        top = mine[:2]
+        if len(top) < 2:
+            return top[:MAX_BOOKS_IF_ONE]
+        k = datetime.now(UTC).toordinal() % 2
+        return (top[k:] + top[:k])[:MAX_BOOKS_IF_ONE]
 
     def find_fixture(self, league: str, home: str, away: str, start: datetime, same) -> str | None:
         """Busca en OddsPapi el partido de una apuesta hecha con otra fuente (por nombres y hora)."""
@@ -308,27 +316,19 @@ class OddsPapi:
             except ValueError:
                 continue
             if same(f.get("participant1Name") or "", f.get("participant2Name") or "", fs, home, away, start):
+                self.__dict__.setdefault("_status", {})[str(f.get("fixtureId"))] = f.get("statusId")
                 return str(f.get("fixtureId"))
         return None
 
     def settlement(self, fixture_id: str, sport: str = "soccer") -> dict | None:
         """Resultado final de un partido (para cobrar apuestas que no encuentran otras fuentes)."""
         if self.ver == 4:
-            mk = self.cache.get("markets", {}).get(sport)
-            d = self._get("settlements", fixtureId=fixture_id) or {}
-            if not mk:
-                return None
-            outs = (((d.get("markets") or {}).get(str(mk["m"])) or {}).get("outcomes") or {})
-            res = {int(o): ((v.get("players") or {}).get("0") or {}).get("result") for o, v in outs.items()}
-            if not res or any(r in (None, "UNDECIDED") for r in res.values()):
-                return None
-            won = [o for o, r in res.items() if r == "WIN"]
-            if len(won) != 1 or won[0] not in mk["o"]:
-                return None
-            idx = mk["o"].index(won[0])
-            three = len(mk["o"]) == 3
-            hs, as_ = {0: (1, 0), 1: (0, 0) if three else (0, 1), 2: (0, 1)}[idx]
-            return {"home": None, "away": None, "hs": hs, "as": as_, "no_score": True}
+            # «settlements» de la v4 devuelve error 500 casi siempre; «scores» (marcador) sí funciona
+            status = self.__dict__.get("_status", {}).get(str(fixture_id))
+            if status is not None and status != 2:
+                return None                           # aún no ha terminado
+            d = self._get("scores", fixtureId=fixture_id) or {}
+            return total_score(d, sport, finished=(status == 2))
         d = self._get("fixtures/settlement", fixtureId=fixture_id) or {}
         sc = (d.get("scores") or {})
         ft = sc.get("result") or sc.get("fulltime")
@@ -414,3 +414,34 @@ def convert_v4(fx: dict, merged: dict, mk: dict, slug_to_us: dict, frm: datetime
             out.append({"id": "op_" + str(fid), "home_team": home, "away_team": away,
                         "commence_time": start.strftime("%Y-%m-%dT%H:%M:%SZ"), "bookmakers": books, "source": "oddspapi"})
     return out
+
+
+def total_score(d: dict, sport: str, finished: bool, now: datetime | None = None) -> dict | None:
+    """Marcador final a partir de los periodos de /v4/scores. El periodo «0» suele ser el total."""
+    per = {}
+    last = None
+    for k, v in (d.get("scores") or {}).items():
+        try:
+            per[int(k)] = (v.get("participant1Score"), v.get("participant2Score"))
+        except (TypeError, ValueError):
+            continue
+        try:
+            u = datetime.fromisoformat(str(v.get("updatedAt")).replace("Z", "+00:00"))
+            last = u if not last or u > last else last
+        except ValueError:
+            pass
+    per = {k: v for k, v in per.items() if v[0] is not None and v[1] is not None}
+    if not per:
+        return None
+    if not finished:      # sin saber el estado: solo si el marcador lleva un rato sin moverse
+        now = now or datetime.now(UTC)
+        if not last or last > now - timedelta(minutes=30):
+            return None
+    if 0 in per:
+        hs, as_ = per[0]
+    elif sport == "tennis":                    # en tenis gana quien gana más sets
+        hs = sum(1 for a, b in per.values() if a > b)
+        as_ = sum(1 for a, b in per.values() if b > a)
+    else:
+        hs, as_ = sum(a for a, _ in per.values()), sum(b for _, b in per.values())
+    return {"home": None, "away": None, "hs": hs, "as": as_}

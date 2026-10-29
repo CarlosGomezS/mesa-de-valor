@@ -546,8 +546,9 @@ class OddsPapiOneBookPerCall(unittest.TestCase):
         self.assertEqual(evs[0]["home_team"], "Real Betis Balompié")
         self.assertIn("bet365", {b["key"] for b in evs[0]["bookmakers"]})
         singles = [x for x in seen if "," not in x]
-        self.assertEqual(singles[:3], ["pinnacle", "bet365.es", "winamax.es"])     # Pinnacle + 2 casas prioritarias
-        self.assertEqual(len(singles), 3)
+        self.assertEqual(singles[0], "pinnacle")                 # Pinnacle + 1 casa que alterna cada día
+        self.assertIn(singles[1], ("bet365.es", "winamax.es"))
+        self.assertEqual(len(singles), 2)
 
 
 class SkipEmptyLeagues(unittest.TestCase):
@@ -597,9 +598,14 @@ class SettleOtherSportsWithOddsPapi(unittest.TestCase):
             if path == "fixtures":
                 return [{"fixtureId": "id55", "participant1Name": "Real Madrid Baloncesto", "participant2Name": "FC Barcelona",
                          "startTime": start.strftime("%Y-%m-%dT%H:%M:%S.000Z"), "statusId": 2}]
-            if path == "settlements":
-                return {"fixtureId": "id55", "markets": {"111": {"outcomes": {
-                    "111": {"players": {"0": {"result": "WIN"}}}, "112": {"players": {"0": {"result": "LOSE"}}}}}}}
+            if path == "scores":
+                u = (start + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                return {"fixtureId": "id55", "scores": {
+                    "0": {"participant1Score": 88, "participant2Score": 80, "updatedAt": u},
+                    "1": {"participant1Score": 20, "participant2Score": 22, "updatedAt": u},
+                    "2": {"participant1Score": 25, "participant2Score": 18, "updatedAt": u},
+                    "3": {"participant1Score": 21, "participant2Score": 20, "updatedAt": u},
+                    "4": {"participant1Score": 22, "participant2Score": 20, "updatedAt": u}}}
             raise AssertionError(path)
         orig = opm.OddsPapi._get
         opm.OddsPapi._get = fake
@@ -621,5 +627,22 @@ class SettleOtherSportsWithOddsPapi(unittest.TestCase):
             opm.OddsPapi._get = orig
             FakeOdds.out_of_credits = False
             tmp.cleanup()
-        self.assertEqual(calls, ["fixtures", "settlements"])
+        self.assertEqual(calls, ["fixtures", "scores"])
         self.assertEqual((b["status"], b["pnl"]), ("ganada", 1.6))
+
+
+class TotalScore(unittest.TestCase):
+    def test_periods(self):
+        old = "2026-10-01T10:00:00Z"
+        d = {"scores": {"1": {"participant1Score": 1, "participant2Score": 0, "updatedAt": old},
+                        "2": {"participant1Score": 1, "participant2Score": 2, "updatedAt": old}}}
+        self.assertEqual(opm.total_score(d, "soccer", True)[ "hs"], 2)
+        self.assertEqual(opm.total_score(d, "soccer", True)["as"], 2)
+        tennis = {"scores": {"1": {"participant1Score": 6, "participant2Score": 4, "updatedAt": old},
+                             "2": {"participant1Score": 3, "participant2Score": 6, "updatedAt": old},
+                             "3": {"participant1Score": 7, "participant2Score": 5, "updatedAt": old}}}
+        r = opm.total_score(tennis, "tennis", True)
+        self.assertEqual((r["hs"], r["as"]), (2, 1))
+        fresh = {"scores": {"0": {"participant1Score": 1, "participant2Score": 0,
+                                  "updatedAt": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}}}
+        self.assertIsNone(opm.total_score(fresh, "soccer", False))          # puede seguir en juego

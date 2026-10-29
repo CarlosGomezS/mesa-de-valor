@@ -929,6 +929,9 @@ def run(password: str, force: bool = False):
             state["budget"]["warned"] = True
             report.append(f"💳 Hoy ya se han usado las consultas previstas ({state['budget']['allow']}). "
                           f"Sigo cobrando resultados, y mañana vuelvo a buscar. Quedan {odds.remaining}.")
+    # turnos: primero las ligas que hace más tiempo que no se revisan (así el cupo llega a todos los deportes)
+    llast = state.setdefault("league_last", {})
+    leagues.sort(key=lambda l: llast.get(l, ""))
     sports = list(dict.fromkeys((leagues if full else []) + list(soon)))
     DIAG.append(f"busqueda: completa={full} ultima={state.get('last_scan')} cada={a['horas_entre_busquedas']}h "
                 f"oddsapi_pausa={odds.paused} oddspapi_ok={op_ok()} (dia {opb.get('used', 0) - opb.get('used_start', 0)}"
@@ -995,6 +998,8 @@ def run(password: str, force: bool = False):
         ref = get_ref(sport, frm, to, close)
         if ref is None:
             continue
+        if not close:
+            llast[sport] = iso(t)
         if not ref and not close:
             skipped.append(sport)
             scan_summary.append((sport, 0, 0, 0))
