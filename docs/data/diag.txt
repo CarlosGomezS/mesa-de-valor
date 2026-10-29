@@ -1,7 +1,25 @@
-2026-10-28T20:31:43Z
+2026-10-29T00:20:08Z
 fd: con clave
-fd soccer_italy_serie_a: pedidos 3, encontrados 3
-busqueda: completa=False ultima=2026-10-28T08:44:12Z cada=8h oddsapi_pausa=True oddspapi_ok=False (dia 33/30) ligas=15
-oddspapi: usadas 0 en esta pasada, 132 este mes de 250
-cuotas: usadas 0, quedan None, pausa True
-cobradas 3, abiertas 13, lab filas 649, gen 1171
+fd soccer_italy_serie_a: pedidos 2, encontrados 2
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+op resultado: HTTP 500: {"error":{"message":"Failed to fetch settlements."
+busqueda: completa=True ultima=2026-10-28T08:44:12Z cada=8h oddsapi_pausa=True oddspapi_ok=True (dia 0/39) ligas=15
+op soccer_spain_la_liga: 5 partidos
+op soccer_spain_segunda_division: 3 partidos
+op soccer_efl_champ: 12 partidos
+op soccer_netherlands_eredivisie: 5 partidos
+op soccer_portugal_primeira_liga: 2 partidos
+op soccer_germany_bundesliga2: 6 partidos
+op soccer_epl: 8 partidos
+op soccer_italy_serie_a: 4 partidos
+op soccer_germany_bundesliga: 7 partidos
+op soccer_france_ligue_one: 4 partidos
+oddspapi: usadas 40 en esta pasada, 172 este mes de 250
+cuotas: usadas 0, quedan None, pausa True ({"message":"Usage quota has been reached. See usage plans at)
+cobradas 1, abiertas 12, lab filas 691, gen 1201
