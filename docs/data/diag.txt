@@ -1,6 +1,7 @@
-2026-10-29T18:41:27Z
+2026-10-29T22:59:00Z
 fd: con clave
+fd soccer_italy_serie_a: pedidos 2, encontrados 2
 busqueda: completa=False ultima=2026-10-29T00:20:08Z cada=8h oddsapi_pausa=True oddspapi_ok=False (dia 40/39) ligas=15
 oddspapi: usadas 0 en esta pasada, 172 este mes de 250
-cuotas: usadas 0, quedan None, pausa True
-cobradas 0, abiertas 19, lab filas 691, gen 1291
+cuotas: usadas 0, quedan None, pausa True ({"message":"Usage quota has been reached. See usage plans at)
+cobradas 2, abiertas 17, lab filas 691, gen 1321
