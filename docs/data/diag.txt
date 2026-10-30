@@ -1,7 +1,12 @@
-2026-10-30T21:11:37Z
+2026-10-30T23:47:57Z
 fd: con clave
-fd soccer_france_ligue_one: pedidos 2, encontrados 2
-busqueda: completa=False ultima=2026-10-30T02:30:25Z cada=24h oddsapi_pausa=True oddspapi_ok=False (dia 19/39) ligas=4
-oddspapi: usadas 0 en esta pasada, 191 este mes de 250 (agotada)
-cuotas: usadas 0, quedan None, pausa True
-cobradas 0, abiertas 14, lab filas 697, gen 1471
+fd soccer_efl_champ: pedidos 1, encontrados 0
+fd soccer_france_ligue_one: pedidos 1, encontrados 1
+fd soccer_germany_bundesliga: pedidos 1, encontrados 1
+fd soccer_portugal_primeira_liga: pedidos 1, encontrados 1
+fd soccer_spain_la_liga: pedidos 1, encontrados 1
+op resultado: HTTP 429: {"error":{"message":"Request limit exceeded","code
+busqueda: completa=False ultima=2026-10-30T02:30:25Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 0/29) ligas=7
+oddspapi: usadas 1 en esta pasada, 192 este mes de 250 (agotada)
+cuotas: usadas 0, quedan None, pausa True ({"message":"Usage quota has been reached. See usage plans at)
+cobradas 1, abiertas 13, lab filas 697, gen 1501
