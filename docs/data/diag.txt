@@ -1,10 +1,7 @@
-2026-10-30T02:30:25Z
+2026-10-30T08:54:39Z
 fd: con clave
-busqueda: completa=True ultima=2026-10-29T00:20:08Z cada=8h oddsapi_pausa=True oddspapi_ok=True (dia 0/39) ligas=15
-op soccer_spain_la_liga: 9 partidos
-op soccer_spain_segunda_division: 8 partidos
-op soccer_efl_champ: error IncompleteRead(0 bytes read)
-op parada: HTTP 429: {"error":{"message":"Request limit exceeded","code":"REQUEST_LIMIT_EXC
-oddspapi: usadas 17 en esta pasada, 189 este mes de 250 (agotada)
-cuotas: usadas 0, quedan None, pausa True
-cobradas 3, abiertas 14, lab filas 697, gen 1351
+op resultado: HTTP 429: {"error":{"message":"Request limit exceeded","code
+busqueda: completa=False ultima=2026-10-30T02:30:25Z cada=8h oddsapi_pausa=True oddspapi_ok=False (dia 17/39) ligas=15
+oddspapi: usadas 1 en esta pasada, 190 este mes de 250 (agotada)
+cuotas: usadas 0, quedan None, pausa True ({"message":"Usage quota has been reached. See usage plans at)
+cobradas 0, abiertas 18, lab filas 697, gen 1381
