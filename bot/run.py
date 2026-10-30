@@ -1031,6 +1031,20 @@ def run(password: str, force: bool = False):
         if sport not in leagues or not full:
             continue
         cands = find_value(ref, s, allowed, METHODS["valor"], sport)
+        best_ev, nbooks = None, set()
+        for r_ in ref.values():
+            for k_, b_ in r_["books"].items():
+                if k_ == "pinnacle" or (allowed and k_ not in allowed):
+                    continue
+                nbooks.add(k_)
+                com_ = 0.05 if k_.startswith("betfair_ex") else 0.0
+                for n_, pr_ in b_["prices"].items():
+                    p_ = r_["fair"].get(n_)
+                    if p_:
+                        e_ = st.ev_back(p_, pr_, com_)
+                        best_ev = e_ if best_ev is None or e_ > best_ev else best_ev
+        DIAG.append(f"valor {sport}: {len(ref)} partidos con Pinnacle, casas {sorted(nbooks)}, "
+                    f"mejor valor {best_ev * 100:+.1f} %" if best_ev is not None else f"valor {sport}: sin casas tuyas con cuota")
         in_window = sum(1 for r in ref.values()
                         if 20 <= (pt(r["commence"]) - t).total_seconds() / 60 <= a["horas_vista"] * 60)
         scan_summary.append((sport, len(ref), in_window, len(cands)))
