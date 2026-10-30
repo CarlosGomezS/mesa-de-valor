@@ -1,6 +1,7 @@
-2026-10-30T20:11:32Z
+2026-10-30T21:11:37Z
 fd: con clave
-busqueda: completa=False ultima=2026-10-30T02:30:25Z cada=8h oddsapi_pausa=True oddspapi_ok=False (dia 19/39) ligas=15
+fd soccer_france_ligue_one: pedidos 2, encontrados 2
+busqueda: completa=False ultima=2026-10-30T02:30:25Z cada=24h oddsapi_pausa=True oddspapi_ok=False (dia 19/39) ligas=4
 oddspapi: usadas 0 en esta pasada, 191 este mes de 250 (agotada)
 cuotas: usadas 0, quedan None, pausa True
-cobradas 4, abiertas 14, lab filas 697, gen 1441
+cobradas 0, abiertas 14, lab filas 697, gen 1471
