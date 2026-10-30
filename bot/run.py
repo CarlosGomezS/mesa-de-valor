@@ -739,6 +739,9 @@ def run(password: str, force: bool = False):
         opb.update(day=day_, used_start=opb["used"],
                    allow=max(2, (int(s.get("op_limit") or 250) - opb["used"]) // left))
 
+    if op and opb.get("pause_until") and t < pt(opb["pause_until"]):
+        op.dead = True                      # OddsPapi dijo «límite alcanzado»: no insistir hasta la hora de reintento
+
     def op_ok() -> bool:
         return bool(op) and not op.dead and (opb["used"] + op.calls) < int(s.get("op_limit") or 250) \
             and (opb["used"] + op.calls - opb["used_start"]) < opb["allow"]
@@ -1171,6 +1174,8 @@ def run(password: str, force: bool = False):
         lab_path().write_bytes(encrypt_bytes(labm.pack(labdata), password))
 
     if op:
+        if op.dead and not opb.get("pause_until", "") > iso(t) and any("429" in d or "agotada" in d for d in DIAG):
+            opb["pause_until"] = iso(t + timedelta(hours=6))
         opb["used"] += op.calls
         DIAG.append(f"oddspapi: usadas {op.calls} en esta pasada, {opb['used']} este mes de {s.get('op_limit') or 250}"
                     f"{' (agotada)' if op.dead else ''}")

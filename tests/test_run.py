@@ -442,7 +442,7 @@ def fake_op_get(start_dt):
             for slug in q["bookmakers"].split(","):
                 if slug == "pinnacle":
                     odds_[slug] = bk((2.30, 3.30, 3.30))
-                if slug == "bet365.es":
+                if slug in ("bet365.es", "winamax.es"):
                     odds_[slug] = bk((2.55, 3.10, 3.20))
             return [{"fixtureId": "id777", "bookmakerOdds": odds_}]
         if path == "fixtures/odds/main":
@@ -544,7 +544,7 @@ class OddsPapiOneBookPerCall(unittest.TestCase):
             opm.OddsPapi._get = orig
         self.assertEqual(c["gs"], 1)
         self.assertEqual(evs[0]["home_team"], "Real Betis Balompié")
-        self.assertIn("bet365", {b["key"] for b in evs[0]["bookmakers"]})
+        self.assertTrue({"bet365", "winamax_fr"} & {b["key"] for b in evs[0]["bookmakers"]})
         singles = [x for x in seen if "," not in x]
         self.assertEqual(singles[0], "pinnacle")                 # Pinnacle + 1 casa que alterna cada día
         self.assertIn(singles[1], ("bet365.es", "winamax.es"))

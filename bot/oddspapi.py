@@ -10,6 +10,7 @@ que el resto del bot no nota de qué fuente vienen las cuotas.
 """
 from __future__ import annotations
 
+import http.client
 import json
 import re
 import unicodedata
@@ -81,6 +82,12 @@ class OddsPapi:
 
     # ---------------------------------------------------------------- llamadas
     def _get(self, path: str, **q):
+        try:
+            return self._get1(path, **q)
+        except (http.client.IncompleteRead, ConnectionError, TimeoutError):
+            return self._get1(path, **q)          # un corte de conexión: un reintento
+
+    def _get1(self, path: str, **q):
         if self.dead:
             raise OPQuotaOut("en pausa")
         import time
@@ -94,8 +101,13 @@ class OddsPapi:
                 self.calls += 1
                 self._last = time.monotonic()
                 return json.loads(r.read().decode() or "null")
+        except (http.client.IncompleteRead, ConnectionError, TimeoutError):
+            self._last = time.monotonic()
+            self.calls += 1
+            raise
         except urllib.error.HTTPError as e:
             self._last = time.monotonic()
+            self.calls += 1          # OddsPapi también cuenta las consultas fallidas
             body = e.read().decode("utf-8", "ignore")[:200]
             if e.code == 401 and "key" in body.lower():
                 raise OPBadKey(f"HTTP 401: {body}") from e
