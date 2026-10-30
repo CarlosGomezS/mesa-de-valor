@@ -1,7 +1,6 @@
-2026-10-30T15:45:07Z
+2026-10-30T20:11:32Z
 fd: con clave
-op resultado: HTTP 429: {"error":{"message":"Request limit exceeded","code
-busqueda: completa=False ultima=2026-10-30T02:30:25Z cada=8h oddsapi_pausa=True oddspapi_ok=False (dia 18/39) ligas=15
-oddspapi: usadas 1 en esta pasada, 191 este mes de 250 (agotada)
-cuotas: usadas 0, quedan None, pausa True ({"message":"Usage quota has been reached. See usage plans at)
-cobradas 0, abiertas 18, lab filas 697, gen 1411
+busqueda: completa=False ultima=2026-10-30T02:30:25Z cada=8h oddsapi_pausa=True oddspapi_ok=False (dia 19/39) ligas=15
+oddspapi: usadas 0 en esta pasada, 191 este mes de 250 (agotada)
+cuotas: usadas 0, quedan None, pausa True
+cobradas 4, abiertas 14, lab filas 697, gen 1441
