@@ -525,7 +525,7 @@ const LEAGUES=[
  ['basketball_euroleague','🏀 Euroliga'],['basketball_nba','🏀 NBA'],
  ['tennis_all','🎾 Tenis: todos los torneos ATP y WTA activos'],
  ['handball_germany_bundesliga','🤾 Balonmano: Bundesliga alemana']];
-const LEAGUES_V2=['soccer_spain_la_liga','soccer_spain_segunda_division','soccer_efl_champ','basketball_euroleague','tennis_all','handball_germany_bundesliga'];
+const LEAGUES_V2=['soccer_spain_la_liga','soccer_epl','soccer_uefa_champs_league','handball_germany_bundesliga','tennis_all'];
 const BOOKS=[
  ['winamax_fr','Winamax','Cuotas de su web francesa: comprueba la cuota en Winamax España antes de apostar.'],
  ['betfair_sb_uk','Betfair (casa de apuestas)','Cuotas de su web británica: comprueba la cuota en betfair.es.'],
@@ -541,7 +541,7 @@ const PROFILE_TXT={prudente:'Solo apuestas con al menos un 3 % de ventaja, impor
  normal:'Algo más de apuestas (desde 2,5 % de ventaja) e importes un poco mayores. Más rápido, pero con más altibajos.',
  personal:'Has cambiado los ajustes avanzados a mano.'};
 const DEFAULTS={odds_api_key:'',fd_key:'',op_key:'',op_limit:250,telegram_token:'',telegram_chat_id:'',ficticio:{activo:true,banca_inicial:50,avisar:true},
- real:{activo:false,banca_inicial:50,metodo:'auto'},ligas:LEAGUES_V2.slice(),ligas_version:3,casas:MY_BOOKS.slice(),casas_v:2,resumen_diario:true,perfil:'prudente',
+ real:{activo:false,banca_inicial:50,metodo:'auto'},ligas:LEAGUES_V2.slice(),ligas_version:4,casas:MY_BOOKS.slice(),casas_v:2,resumen_diario:true,perfil:'prudente',
  avanzado:{valor_minimo:0.03,valor_maximo:0.15,fraccion_kelly:0.25,tope:0.04,minima:0.5,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30,horas_vista:30,horas_entre_busquedas:6,metodo:'power'}};
 const merge=(a,b)=>{const o={...a};for(const k in b||{})o[k]=(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k])?merge(a[k],b[k]):b[k];return o};
 
@@ -568,9 +568,9 @@ async function login(pw,silent){
     const s2=structuredClone(SETTINGS);s2.real.metodo='auto';s2.auto_v=1;
     try{await writeFile('docs/data/settings.enc',await enc(s2,PW),'piloto automático');SETTINGS=s2;fillSettings();renderState()}catch(e){}
   }
-  if(raw.ligas_version!==3&&TOKEN){
-    const s2=structuredClone(SETTINGS);s2.ligas=LEAGUES_V2.slice();s2.ligas_version=3;s2.avanzado.horas_entre_busquedas=8;
-    try{await writeFile('docs/data/settings.enc',await enc(s2,PW),'ligas recomendadas');SETTINGS=s2;fillSettings();toast('Deportes actualizados: fútbol, baloncesto, tenis y balonmano')}catch(e){}
+  if((raw.ligas_version||0)<4&&TOKEN){
+    const s2=structuredClone(SETTINGS);s2.ligas=LEAGUES_V2.slice();s2.ligas_version=4;s2.avanzado.horas_entre_busquedas=24;s2.avanzado.horas_vista=36;
+    try{await writeFile('docs/data/settings.enc',await enc(s2,PW),'ligas recomendadas');SETTINGS=s2;fillSettings();toast('Plan diario: fútbol, balonmano y tenis')}catch(e){}
   }
 }
 $('loginBtn').onclick=async()=>{$('loginErr').textContent='';

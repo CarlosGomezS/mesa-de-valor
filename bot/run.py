@@ -79,6 +79,10 @@ METHODS = {
     "control":     {"nombre": "Control: siempre el favorito", "ref": "control", "stake": "flat"},
 }
 FLAT_PCT = 0.01
+PLAN_V = 4
+PLAN_LEAGUES = ["soccer_spain_la_liga", "soccer_epl", "soccer_uefa_champs_league",
+                "handball_germany_bundesliga", "tennis_all"]
+PLAN_MSG: list = []
 ALL: dict = dict(METHODS)        # métodos fijos + los que el laboratorio ha promovido
 
 
@@ -692,7 +696,15 @@ def can_spend(state: dict, odds: "Odds") -> bool:
 # ============================ ciclo ============================
 
 def run(password: str, force: bool = False):
+    PLAN_MSG.clear()
     s = merge(DEFAULT_SETTINGS, read_enc("settings.enc", password, {}))
+    if (s.get("ligas_version") or 0) < PLAN_V:
+        # plan ajustado al cupo gratuito: fútbol, balonmano y tenis, una búsqueda al día
+        s["ligas"], s["ligas_version"] = list(PLAN_LEAGUES), PLAN_V
+        s["avanzado"]["horas_entre_busquedas"], s["avanzado"]["horas_vista"] = 24, 36
+        (DATA / "settings.enc").write_text(encrypt(s, password))
+        PLAN_MSG.append("⚙️ Nuevo plan: una búsqueda al día en LaLiga, Premier, Champions, balonmano (Bundesliga) "
+                        "y tenis (torneos ATP/WTA activos), para que el cupo gratuito dure todo el mes.")
     state = read_enc("state.enc", password, None) or {
         "version": 1, "ledgers": {"real": {"bets": []}},
         "snapshots": {}, "last_scan": None, "applied": [], "log": [], "last_summary": None}
@@ -760,7 +772,7 @@ def run(password: str, force: bool = False):
             expired.append(f"⌛ Apuesta real no confirmada, ya empezó el partido: {h(b['event'])} · {h(b['selection'])}")
 
     # 2) liquidar partidos terminados
-    report: list[str] = [h(x) for x in inbox_msgs] + expired
+    report: list[str] = [h(x) for x in inbox_msgs] + expired + PLAN_MSG
     auto_best, auto_msgs = autopilot(state)
     report += auto_msgs
     settled_now: list[tuple[str, dict, str]] = []     # (cartera, apuesta, marcador)
