@@ -1,7 +1,8 @@
-2026-10-31T02:47:16Z
+2026-10-31T08:57:49Z
 fd: con clave
 fd soccer_efl_champ: pedidos 1, encontrados 0
-busqueda: completa=True ultima=2026-10-30T02:30:25Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 1/29) ligas=7
-oddspapi: usadas 0 en esta pasada, 192 este mes de 250 (agotada)
+op resultado: HTTP 429: {"error":{"message":"Request limit exceeded","code
+busqueda: completa=False ultima=2026-10-30T02:30:25Z cada=24h oddsapi_pausa=True oddspapi_ok=False (dia 1/29) ligas=4
+oddspapi: usadas 1 en esta pasada, 193 este mes de 250 (agotada)
 cuotas: usadas 0, quedan None, pausa True ({"message":"Usage quota has been reached. See usage plans at)
-cobradas 0, abiertas 13, lab filas 697, gen 1531
+cobradas 0, abiertas 13, lab filas 697, gen 1561
