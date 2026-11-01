@@ -27,8 +27,8 @@ import zlib
 from datetime import datetime, timezone
 
 # ------------------------------------------------------------------ umbrales
-POP_SIZE = 60            # métodos vivos en el laboratorio
-NEW_PER_GEN = 40         # métodos nuevos por generación
+POP_SIZE = 90            # métodos vivos en el laboratorio
+NEW_PER_GEN = 60         # métodos nuevos por generación
 MAX_ROWS = 150_000       # memoria máxima de observaciones (las más antiguas se olvidan)
 MAX_EVENTS = 40_000
 VAL_SHARE = 0.35         # parte más reciente reservada para validar

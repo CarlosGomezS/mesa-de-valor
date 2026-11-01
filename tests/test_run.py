@@ -184,7 +184,7 @@ class Methods(unittest.TestCase):
         return [(c[5], c[6]) for c in run.find_value(self.ref, self.s, set(), run.METHODS[k], sport)]
 
     def test_twenty_methods(self):
-        self.assertEqual(len(run.METHODS), 20)
+        self.assertEqual(len(run.METHODS), 21)
         self.assertIn("tenis", run.METHODS)
         self.assertEqual(self.pick("tenis"), [])
         self.assertEqual(self.pick("tenis", "tennis_atp_paris_masters"), [("Real Betis", 2.55)])
@@ -646,3 +646,24 @@ class TotalScore(unittest.TestCase):
         fresh = {"scores": {"0": {"participant1Score": 1, "participant2Score": 0,
                                   "updatedAt": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}}}
         self.assertIsNone(opm.total_score(fresh, "soccer", False))          # puede seguir en juego
+
+
+class Learning(unittest.TestCase):
+    def test_learns_best_method_per_sport(self):
+        def bets(n, sport, win_every, odds=2.2):
+            out = []
+            for i in range(n):
+                w = i % win_every == 0
+                out.append({"status": "ganada" if w else "perdida", "sport": sport, "stake": 1.0, "odds": odds,
+                            "pnl": odds - 1 if w else -1.0, "close_fair_odds": odds / 1.03})
+            return out
+        st_ = {"ledgers": {"f_" + k: {"bets": []} for k in run.METHODS}}
+        run.refresh_methods(st_)
+        st_["ledgers"]["f_favoritos"]["bets"] = bets(40, "soccer_spain_la_liga", 2) + bets(40, "tennis_atp_x", 4)
+        st_["ledgers"]["f_empates"]["bets"] = bets(40, "soccer_epl", 4)
+        st_["ledgers"]["f_estricto"]["bets"] = bets(40, "tennis_atp_y", 2)
+        st_["ledgers"]["f_volumen"]["bets"] = bets(3, "soccer_epl", 1)              # pocas: no cuenta
+        L = run.learn(st_)
+        self.assertEqual(run.best_for(L, "soccer_epl"), "favoritos")
+        self.assertEqual(run.best_for(L, "tennis_atp_paris"), "estricto")
+        self.assertEqual(run.best_for(L, "handball_x"), "valor")                  # sin datos: el principal

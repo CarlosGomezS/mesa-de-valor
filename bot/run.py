@@ -77,6 +77,8 @@ METHODS = {
     "agresivo":    {"nombre": "Valor agresivo (½ Kelly)", "ref": "pinnacle", "kf": 0.5},
     # --- comparación ---
     "control":     {"nombre": "Control: siempre el favorito", "ref": "control", "stake": "flat"},
+    # --- autodidacta: en cada deporte copia al método que mejor le está yendo en ese deporte ---
+    "auto":        {"nombre": "Autodidacta (mejor por deporte)", "ref": "auto"},
 }
 FLAT_PCT = 0.01
 PLAN_V = 4
@@ -638,6 +640,54 @@ def qualifies(x: dict) -> bool:
         and x["roi"] > 0 and x["recent_clv"] > 0
 
 
+# ============================ aprendizaje por deporte ============================
+LEARN_SHRINK = 60      # apuestas «imaginarias» al 0 %: con pocas apuestas nadie destaca por suerte
+LEARN_MIN = 8          # apuestas terminadas mínimas en un deporte para que un método cuente
+
+
+def family(sport: str) -> str:
+    return sport.split("_")[0]
+
+
+def learn(state: dict) -> dict:
+    """Puntúa cada método en cada deporte con sus propias apuestas (aciertos, fallos y cuota de cierre).
+
+    puntuación = rentabilidad encogida hacia 0 según el número de apuestas + 0,5 × CLV medio.
+    Así aprende de lo que gana y de lo que pierde, pero no se fía de una racha corta.
+    """
+    out: dict = {}
+    for k in ALL:
+        if k in ("control", "auto"):
+            continue
+        per: dict = {}
+        for b in state["ledgers"].get("f_" + k, {"bets": []})["bets"]:
+            if b.get("status") not in ("ganada", "perdida") or not b.get("sport"):
+                continue
+            x = per.setdefault(family(b["sport"]), {"n": 0, "st": 0.0, "pnl": 0.0, "clv": [], "w": 0})
+            x["n"] += 1
+            x["st"] += b["stake"]
+            x["pnl"] += b["pnl"] or 0
+            x["w"] += b["status"] == "ganada"
+            if b.get("close_fair_odds"):
+                x["clv"].append(b["odds"] / b["close_fair_odds"] - 1)
+        for fam, x in per.items():
+            if x["n"] < LEARN_MIN:
+                continue
+            roi = x["pnl"] / x["st"] if x["st"] else 0.0
+            clv = sum(x["clv"]) / len(x["clv"]) if x["clv"] else 0.0
+            score = roi * x["n"] / (x["n"] + LEARN_SHRINK) + 0.5 * max(-0.05, min(0.05, clv))
+            out.setdefault(fam, []).append({"k": k, "n": x["n"], "roi": round(roi, 4), "clv": round(clv, 4),
+                                            "acierto": round(x["w"] / x["n"], 3), "score": round(score, 4)})
+    for fam in out:
+        out[fam].sort(key=lambda r: -r["score"])
+    return out
+
+
+def best_for(learned: dict, sport: str) -> str:
+    rows = learned.get(family(sport)) or []
+    return rows[0]["k"] if rows and rows[0]["score"] > 0 and rows[0]["k"] in ALL else "valor"
+
+
 def autopilot(state: dict) -> tuple[str | None, list[str]]:
     table = {k: method_stats(state["ledgers"].get("f_" + k, {"bets": []})["bets"]) for k in ALL if k != "control"}
     ok = sorted((k for k, x in table.items() if qualifies(x)), key=lambda k: -table[k]["t"])
@@ -775,6 +825,15 @@ def run(password: str, force: bool = False):
     report: list[str] = [h(x) for x in inbox_msgs] + expired + PLAN_MSG
     auto_best, auto_msgs = autopilot(state)
     report += auto_msgs
+    learned = learn(state)
+    prev_best = (state.get("learn") or {}).get("best", {})
+    best_now = {fam: best_for(learned, fam) for fam in learned}
+    for fam, k in best_now.items():
+        if prev_best.get(fam) and prev_best[fam] != k:
+            report.append(f"🧠 Aprendizaje: en {labm.SPORT_ES.get(fam, fam).lower()} el mejor método ahora es "
+                          f"<b>{h(ALL[k]['nombre'])}</b> (antes {h(ALL.get(prev_best[fam], {}).get('nombre', prev_best[fam]))}). "
+                          f"El método Autodidacta lo sigue desde ya.")
+    state["learn"] = {"ts": iso(now()), "best": best_now, "table": learned}
     settled_now: list[tuple[str, dict, str]] = []     # (cartera, apuesta, marcador)
     owner = {id(b): name for name, Lg in state["ledgers"].items() for b in Lg["bets"]}
     due = {b["sport"] for b in all_bets if b["status"] == "abierta" and pt(b["commence"]) < t - timedelta(hours=2, minutes=30)}
@@ -1067,9 +1126,18 @@ def run(password: str, force: bool = False):
         scan_summary.append((sport, len(ref), in_window, len(cands)))
         if s["ficticio"]["activo"]:
             for k, m in ALL.items():
+                if k == "auto":
+                    continue
                 for b in place(state, s, sport, cands if k == "valor" else find_value(ref, s, allowed, m, sport), "f_" + k, m):
                     new_fict.setdefault(b["event"], []).append((m["nombre"], b))
                     NEWBETS[k] = NEWBETS.get(k, 0) + 1
+            # autodidacta: usa las reglas del mejor método de este deporte, con su propia cartera
+            via = best_for(learned, sport)
+            vm = ALL[via]
+            for b in place(state, s, sport, cands if via == "valor" else find_value(ref, s, allowed, vm, sport), "f_auto", vm):
+                b["method"], b["via"] = "auto", via
+                new_fict.setdefault(b["event"], []).append((f"Autodidacta (como {vm['nombre']})", b))
+                NEWBETS["auto"] = NEWBETS.get("auto", 0) + 1
         rkey = auto_best if s["real"].get("metodo") == "auto" else s["real"].get("metodo")
         if s["real"]["activo"] and rkey in ALL:
             rm = ALL[rkey]
@@ -1145,6 +1213,12 @@ def run(password: str, force: bool = False):
             label = "💶 REAL" if name == "real" else ALL[name[2:]]["nombre"]
             rows.append((bank - bank0(s, name), f"{h(label)}: {bank:.2f} € ({eur(bank - bank0(s, name))}) · "
                                                  f"{n_done} terminadas, {n_open} pendientes".replace(".", ",")))
+        lr = state.get("learn") or {}
+        if lr.get("best"):
+            report.append("🧠 <b>Lo aprendido hasta hoy</b> (mejor método por deporte)\n" + "\n".join(
+                f"{labm.SPORT_ES.get(f, f)}: {h(ALL.get(k, {}).get('nombre', k))}"
+                + (f" · {lr['table'][f][0]['n']} apuestas, rentab. {pc(lr['table'][f][0]['roi'])}" if lr['table'].get(f) else "")
+                for f, k in lr["best"].items()))
         if rows:
             rows.sort(key=lambda r: -r[0])
             report.append("📊 <b>Resumen del día</b> (de más a menos ganancia)\n" + "\n".join(r[1] for r in rows))

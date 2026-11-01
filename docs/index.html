@@ -285,6 +285,11 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
         <div class="stats" id="labStats"></div>
         <p class="small muted" id="labStatus"></p>
       </div>
+      <div class="card">
+        <h3>Mejor método por deporte</h3>
+        <p class="small muted">Lo que el bot ha aprendido de los aciertos y fallos de cada método. El método «Autodidacta» apuesta siempre con el que va primero en cada deporte.</p>
+        <div id="labSport"></div>
+      </div>
       <div id="labPendBox" hidden style="display:flex;flex-direction:column;gap:10px">
         <h3>Esperan tu aprobación</h3>
         <div id="labPend" style="display:flex;flex-direction:column;gap:10px"></div>
@@ -665,6 +670,7 @@ const METHODS={
  doble:{n:'Doble confirmación',d:'Solo apuesta si hay valor tanto frente a Pinnacle como frente a la media de las casas. Menos apuestas, más fiables.'},
  plano:{n:'Valor con importe fijo',d:'Las mismas apuestas que el principal, siempre con el 1 % de la banca. Sirve para ver si Kelly ayuda.'},
  agresivo:{n:'Valor agresivo (½ Kelly)',d:'Las mismas apuestas que el principal, con el doble de importe. Crece más rápido si funciona y cae más rápido si no.'},
+ auto:{n:'Autodidacta (mejor por deporte)',d:'Aprende solo: en cada deporte copia las reglas del método que mejor le está yendo en ese deporte (rentabilidad y cuota de cierre, sin fiarse de rachas cortas). Si otro método pasa a ir mejor, cambia solo y te avisa por Telegram.'},
  control:{n:'Control: siempre el favorito',d:'Sin método: apuesta al favorito de cada partido. Debería perder poco a poco. Si un método no lo supera, no funciona.'}};
 let METHOD=ls.get('mv.method')||'valor';if(!METHODS[METHOD])METHOD='valor';
 $('method').innerHTML=Object.entries(METHODS).map(([k,m])=>`<option value="${k}">${m.n}</option>`).join('');
@@ -726,7 +732,17 @@ function labCard(p,kind){
   return `<div class="labm ${kind==='pend'?'pend':''}"><div class="hd"><b>Lab #${esc(p.id)}</b>${kind==='top'&&p.born?`<span class="small muted">gen. ${p.born}</span>`:''}</div>
     <div class="ds">${esc(p.desc)}</div>${nums}${tail}</div>`;
 }
+function renderLearn(){
+  const lr=STATE?.learn,el=$('labSport');if(!el)return;
+  const SP={soccer:'⚽ Fútbol',basketball:'🏀 Baloncesto',tennis:'🎾 Tenis',handball:'🤾 Balonmano'};
+  if(!lr||!Object.keys(lr.table||{}).length){el.innerHTML='<p class="small muted">Aún no hay suficientes apuestas terminadas por deporte (hacen falta 8 por método). Mientras, el Autodidacta usa «Valor contra Pinnacle».</p>';return}
+  el.innerHTML=Object.entries(lr.table).map(([f,rows])=>`<details class="labm" ${f==='soccer'?'open':''}><summary><b>${SP[f]||f}</b> · ahora: <b>${esc(METHODS[lr.best[f]]?.n||lr.best[f])}</b></summary>
+    <div style="overflow-x:auto"><table style="width:100%;font-size:13px;border-collapse:collapse;margin-top:6px"><thead><tr><th style="text-align:left">Método</th><th>Apuestas</th><th>Acierto</th><th>Rentab.</th><th>CLV</th></tr></thead><tbody>
+    ${rows.slice(0,6).map((r,i)=>`<tr${i===0?' style="font-weight:600"':''}><td>${esc(METHODS[r.k]?.n||r.k)}</td><td style="text-align:right">${r.n}</td><td style="text-align:right">${Math.round(r.acierto*100)} %</td>
+      <td style="text-align:right" class="${r.roi>=0?'pos':'neg'}">${sPct(r.roi)}</td><td style="text-align:right" class="${r.clv>=0?'pos':'neg'}">${sPct(r.clv)}</td></tr>`).join('')}</tbody></table></div></details>`).join('');
+}
 function renderLab(){
+  renderLearn();
   const L_=STATE?.lab_summary;
   if(!L_){$('labStats').innerHTML='';$('labStatus').textContent='El laboratorio empieza a observar en la próxima búsqueda del bot.';$('labTop').innerHTML='';$('labProm').innerHTML='<p class="small muted">Todavía ninguno.</p>';$('labPendBox').hidden=true;return}
   $('labStats').innerHTML=`<div><div class="k">Datos</div><div class="v">${L_.rows.toLocaleString('es-ES')}</div></div>
