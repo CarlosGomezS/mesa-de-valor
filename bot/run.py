@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import base64
 import html
-import hashlib
 import json
 import os
 import secrets
@@ -22,7 +21,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import strategy as st  # noqa: E402
@@ -33,7 +31,6 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "docs" / "data"
 UTC = timezone.utc
 MAD = ZoneInfo("Europe/Madrid")
-ITER = 210_000
 
 DEFAULT_SETTINGS = {
     "odds_api_key": "", "fd_key": "", "op_key": "", "op_limit": 250, "telegram_token": "", "telegram_chat_id": "",
@@ -97,34 +94,7 @@ def refresh_methods(state: dict) -> dict:
     return ALL
 
 
-# ============================ cifrado (compatible con la web) ============================
-
-def _key(password: str, salt: bytes) -> bytes:
-    return hashlib.pbkdf2_hmac("sha256", password.encode(), salt, ITER, 32)
-
-
-def encrypt(obj, password: str) -> str:
-    salt, iv = secrets.token_bytes(16), secrets.token_bytes(12)
-    ct = AESGCM(_key(password, salt)).encrypt(iv, json.dumps(obj, ensure_ascii=False).encode(), None)
-    b = lambda x: base64.b64encode(x).decode()
-    return json.dumps({"v": 1, "salt": b(salt), "iv": b(iv), "ct": b(ct)})
-
-
-def decrypt(text: str, password: str):
-    d = json.loads(text)
-    u = base64.b64decode
-    return json.loads(AESGCM(_key(password, u(d["salt"]))).decrypt(u(d["iv"]), u(d["ct"]), None))
-
-
-def encrypt_bytes(raw: bytes, password: str) -> bytes:
-    salt, iv = secrets.token_bytes(16), secrets.token_bytes(12)
-    return b"MV1" + salt + iv + AESGCM(_key(password, salt)).encrypt(iv, raw, None)
-
-
-def decrypt_bytes(blob: bytes, password: str) -> bytes:
-    assert blob[:3] == b"MV1"
-    salt, iv = blob[3:19], blob[19:31]
-    return AESGCM(_key(password, salt)).decrypt(iv, blob[31:], None)
+from cifrado import encrypt, decrypt, encrypt_bytes, decrypt_bytes  # noqa: E402,F401
 
 
 LAB_SECONDS = 180       # tiempo de laboratorio en cada pasada (GitHub la ejecuta cada 20-60 min)
@@ -170,114 +140,8 @@ def merge(base: dict, over: dict) -> dict:
     return out
 
 
-def http_json(url: str, data: bytes | None = None):
-    req = urllib.request.Request(url, data=data, method="POST" if data else "GET")
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read().decode() or "null"), dict(r.headers)
-
-
-# ============================ fuentes ============================
-
-ODDSAPI_MISSING = {"bet365"}       # Bet365 solo llega por OddsPapi
-
-
-class QuotaOut(Exception):
-    """La API rechaza las consultas (401): casi siempre, consultas del mes agotadas."""
-
-
-class Odds:
-    BASE = "https://api.the-odds-api.com/v4"
-
-    def __init__(self, key: str, paused: bool = False):
-        self.key, self.remaining, self.used, self.paused = key, None, 0, paused
-        self.quota_msg = ""
-
-    def _call(self, url: str):
-        if self.paused:
-            raise QuotaOut(self.quota_msg or "en pausa")
-        try:
-            return http_json(url)
-        except urllib.error.HTTPError as e:
-            body = e.read().decode("utf-8", "ignore")[:200]
-            if e.code in (401, 429):
-                self.paused, self.quota_msg = True, body
-                raise QuotaOut(body) from e
-            raise RuntimeError(f"HTTP {e.code}: {body}") from e
-
-    def _get(self, path: str, q: dict):
-        q = {"apiKey": self.key, **q}
-        data, h = self._call(f"{self.BASE}{path}?{urllib.parse.urlencode(q)}")
-        self.remaining = h.get("x-requests-remaining") or h.get("X-Requests-Remaining")
-        self.used += 1
-        return data or []
-
-    def events_count(self, sport: str, frm: datetime, to: datetime) -> int:
-        """Partidos de la liga en la ventana. Esta consulta es gratuita (no gasta créditos)."""
-        q = {"apiKey": self.key, "commenceTimeFrom": frm.strftime("%Y-%m-%dT%H:%M:%SZ"),
-             "commenceTimeTo": to.strftime("%Y-%m-%dT%H:%M:%SZ")}
-        data, _ = self._call(f"{self.BASE}/sports/{sport}/events?{urllib.parse.urlencode(q)}")
-        return len(data or [])
-
-    def odds(self, sport: str, books: list[str], frm: datetime | None = None, to: datetime | None = None):
-        q = {"markets": "h2h", "oddsFormat": "decimal"}
-        if frm and to:
-            q["commenceTimeFrom"] = frm.strftime("%Y-%m-%dT%H:%M:%SZ")
-            q["commenceTimeTo"] = to.strftime("%Y-%m-%dT%H:%M:%SZ")
-        books = [b for b in books if b not in ODDSAPI_MISSING]      # casas que esta API no tiene
-        if books:
-            q["bookmakers"] = ",".join(sorted(set(["pinnacle"] + books)))
-        else:
-            q["regions"] = "eu"
-        return self._get(f"/sports/{sport}/odds/", q)
-
-    def active_sports(self) -> list[str]:
-        """Lista de competiciones activas. Gratuita."""
-        data, _ = self._call(f"{self.BASE}/sports/?{urllib.parse.urlencode({'apiKey': self.key})}")
-        return [x["key"] for x in (data or []) if x.get("active") and not x.get("has_outrights")]
-
-    def scores(self, sport: str):
-        return self._get(f"/sports/{sport}/scores/", {"daysFrom": 3})
-
-
-# ---------------- football-data.org: resultados de fútbol gratis ----------------
-FD_CODES = {"soccer_spain_la_liga": "PD", "soccer_epl": "PL", "soccer_efl_champ": "ELC",
-            "soccer_netherlands_eredivisie": "DED", "soccer_portugal_primeira_liga": "PPL",
-            "soccer_germany_bundesliga": "BL1", "soccer_italy_serie_a": "SA", "soccer_france_ligue_one": "FL1",
-            "soccer_uefa_champs_league": "CL"}
-
-
-class FootballData:
-    BASE = "https://api.football-data.org/v4"
-
-    def __init__(self, key: str):
-        self.key, self.calls = key, 0
-
-    def upcoming(self, codes: list[str], d_from: datetime, d_to: datetime) -> dict:
-        """Cuántos partidos por competición hay entre dos fechas. Gratis: sirve para no gastar consultas en ligas vacías."""
-        q = urllib.parse.urlencode({"competitions": ",".join(codes), "dateFrom": d_from.strftime("%Y-%m-%d"),
-                                    "dateTo": d_to.strftime("%Y-%m-%d")})
-        req = urllib.request.Request(f"{self.BASE}/matches?{q}", headers={"X-Auth-Token": self.key})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            self.calls += 1
-            matches = (json.loads(r.read().decode() or "{}") or {}).get("matches", [])
-        out = {c: 0 for c in codes}
-        for m in matches:
-            if m.get("status") not in ("SCHEDULED", "TIMED"):
-                continue
-            mt = pt(m["utcDate"])
-            if d_from <= mt <= d_to:
-                code = (m.get("competition") or {}).get("code")
-                if code in out:
-                    out[code] += 1
-        return out
-
-    def finished(self, code: str, d_from: datetime, d_to: datetime) -> list[dict]:
-        q = urllib.parse.urlencode({"status": "FINISHED", "dateFrom": d_from.strftime("%Y-%m-%d"),
-                                    "dateTo": d_to.strftime("%Y-%m-%d")})
-        req = urllib.request.Request(f"{self.BASE}/competitions/{code}/matches?{q}", headers={"X-Auth-Token": self.key})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            self.calls += 1
-            return (json.loads(r.read().decode() or "{}") or {}).get("matches", [])
+from fuentes import (http_json, ODDSAPI_MISSING, QuotaOut, Odds, FD_CODES,  # noqa: E402,F401
+                     FootballData)
 
 
 def fd_results(fd: FootballData, sport: str, needed: list[tuple], t: datetime) -> dict:
@@ -463,6 +327,30 @@ def find_value(ref: dict, s: dict, allowed: set, m: dict | None = None, sport: s
     return sorted(found, key=lambda x: -x[2])
 
 
+SLIP_MIN = 3     # con 3 apuestas reales confirmadas en una casa ya se corrige su cuota
+
+
+def slip_factor(state: dict, book_key: str) -> float | None:
+    """Cuánto de la cuota propuesta consigues de verdad en esa casa (mediana de tus confirmaciones).
+    1.00 = la misma; 0.98 = un 2 % peor. None = aún no hay datos."""
+    xs = ((state.get("slip") or {}).get(book_key) or {}).get("r") or []
+    if len(xs) < SLIP_MIN:
+        return None
+    ys = sorted(xs)
+    mid = len(ys) // 2
+    return min(1.02, ys[mid] if len(ys) % 2 else (ys[mid - 1] + ys[mid]) / 2)
+
+
+def record_slip(state: dict, b: dict, got: float | None):
+    """Guarda lo que pasó con una propuesta real: la cuota que conseguiste o que no la pudiste hacer."""
+    d = state.setdefault("slip", {}).setdefault(b.get("book_key") or b.get("book", "?"), {"r": [], "miss": 0, "ok": 0})
+    if got:
+        d["r"] = (d["r"] + [round(got / b["odds"], 4)])[-30:]
+        d["ok"] += 1
+    else:
+        d["miss"] += 1
+
+
 def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict]:
     """Ficticio: apuesta directamente. Real: crea una propuesta que tú confirmas."""
     a = s["avanzado"]
@@ -480,6 +368,17 @@ def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict
                for b in bets):
             continue
         com = a.get("comision_exchange", 0.05) if key.startswith("betfair_ex") or key == "matchbook" else 0.0
+        proposed = price
+        if name == "real":
+            # cuota que de verdad sueles conseguir en esa casa (aprendido de tus confirmaciones)
+            f = slip_factor(state, key)
+            if f is not None and f < 1:
+                price = round(price * f, 2)
+                ev = st.ev_back(p, price, com)
+                if ev < a["valor_minimo"]:
+                    note(state, f"real: descarto {r['home']} - {r['away']} en {title}: con la cuota que sueles conseguir "
+                                f"({price:.2f}) ya no hay valor")
+                    continue
         if m.get("stake") == "flat":
             stake = round(max(a["minima"], bank * FLAT_PCT), 2) if bank >= a["minima"] else 0
         else:
@@ -492,7 +391,7 @@ def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict
         b = {"id": secrets.token_hex(4), "created": iso(now()), "sport": sport, "event_id": eid,
              "event": f"{r['home']} - {r['away']}", "commence": r["commence"],
              "selection": "Empate" if outcome == "Draw" else outcome, "outcome_key": outcome,
-             "book": title, "book_key": key, "odds": price, "min_odds": round(1 + ((1 + a["valor_minimo"]) / p - 1) / (1 - com), 2), "com": com,
+             "book": title, "book_key": key, "odds": proposed, "odds_esperada": price if price != proposed else None, "min_odds": round(1 + ((1 + a["valor_minimo"]) / p - 1) / (1 - com), 2), "com": com,
              "stake": stake, "bank_pct": round(stake / bank, 4) if bank > 0 else None, "fair_p": round(p, 4), "ev": round(ev, 4), "close_fair_odds": None,
              "status": "propuesta" if name == "real" else "abierta", "pnl": None, "settled": None,
              "method": next((k for k, v in ALL.items() if v is m), "valor")}
@@ -528,12 +427,15 @@ def apply_inbox(state, inbox: list[dict]) -> list[str]:
                 continue
             if act["type"] == "hecha" and b["status"] == "propuesta":
                 b["status"] = "abierta"
-                b["odds"] = float(act.get("odds") or b["odds"])
+                got = float(act.get("odds") or b["odds"])
+                record_slip(state, b, got)
+                b["odds_propuesta"], b["odds"] = b["odds"], got
                 b["stake"] = float(act.get("stake") or b["stake"])
                 b["ev"] = round(st.ev_back(b["fair_p"], b["odds"], b.get("com", 0.0)), 4)
                 msgs.append(f"📝 Anotada tu apuesta real: {b['event']} · {b['selection']} a {b['odds']:.2f} · {b['stake']:.2f} €")
             elif act["type"] == "no" and b["status"] == "propuesta":
                 b["status"] = "descartada"
+                record_slip(state, b, None)
                 msgs.append(f"🚫 Apuesta real descartada: {b['event']} · {b['selection']}")
             elif act["type"] == "resultado" and b["status"] == "abierta":
                 settle_bet(b, act["result"])
@@ -737,6 +639,71 @@ def autopilot(state: dict) -> tuple[str | None, list[str]]:
 
 
 # ============================ presupuesto de consultas ============================
+
+NEAR_FROM_H, NEAR_TO_H = 1, 8   # partidos que empiezan en esta franja merecen una búsqueda «fresca»
+NEAR_GAP_H = 6                  # como mucho una búsqueda extra de una liga cada 6 h
+CAL_TTL_H = 3                   # el calendario (gratis) se refresca cada 3 h
+
+
+def calendar(state: dict, odds, sport: str, t: datetime) -> list[str] | None:
+    """Horas de inicio de los próximos partidos de una liga (gratis, guardado 3 h). None = no se sabe."""
+    cal = state.setdefault("cal", {})
+    c = cal.get(sport)
+    if c and pt(c["ts"]) > t - timedelta(hours=CAL_TTL_H):
+        return c["times"]
+    fn = getattr(odds, "event_times", None)
+    if not fn or getattr(odds, "paused", False):
+        return c["times"] if c else None
+    try:
+        times = fn(sport, t, t + timedelta(hours=48))
+    except Exception as e:
+        DIAG.append(f"calendario {sport}: {str(e)[:60]}")
+        return c["times"] if c else None
+    cal[sport] = {"ts": iso(t), "times": sorted(times)}
+    return cal[sport]["times"]
+
+
+def left_today(state: dict, odds) -> int | None:
+    b = state.get("budget") or {}
+    raw = odds.remaining if odds.remaining is not None else state.get("credits")
+    rem = int(raw) if str(raw or "").isdigit() else None
+    if rem is None or not b:
+        return None
+    return b["allow"] - (b["start"] - rem)
+
+
+def due_leagues(state: dict, odds, leagues: list[str], t: datetime, every_h: float, force: bool) -> tuple[list, dict]:
+    """Qué ligas buscar ahora. Cada liga se busca al menos una vez cada X horas y, además, una vez más
+    cuando tiene partidos en las próximas 1-8 h (las cuotas cerca del partido son más fiables y las casas
+    españolas ya tienen todos los mercados). Las extras solo si queda presupuesto del día."""
+    llast = state.setdefault("league_last", {})
+    why: dict[str, str] = {}
+    for lg in leagues:
+        last = llast.get(lg)
+        if force:
+            why[lg] = "pedida"
+        elif not last or pt(last) <= t - timedelta(hours=every_h) + timedelta(minutes=10):
+            why[lg] = "turno"
+    extra_room = left_today(state, odds)
+    extra_room = 99 if extra_room is None else extra_room - len(why)
+    near = []
+    for lg in leagues:
+        if lg in why:
+            continue
+        last = llast.get(lg)
+        if last and pt(last) > t - timedelta(hours=NEAR_GAP_H):
+            continue
+        times = calendar(state, odds, lg, t)
+        if not times:
+            continue
+        soon_n = sum(1 for x in times if t + timedelta(hours=NEAR_FROM_H) <= pt(x) <= t + timedelta(hours=NEAR_TO_H))
+        if soon_n and (not last or any(pt(last) + timedelta(hours=NEAR_GAP_H) <= pt(x) for x in times
+                                        if t + timedelta(hours=NEAR_FROM_H) <= pt(x) <= t + timedelta(hours=NEAR_TO_H))):
+            near.append((min(x for x in times if pt(x) >= t + timedelta(hours=NEAR_FROM_H)), lg))
+    for _, lg in sorted(near)[:max(0, extra_room)]:
+        why[lg] = "partidos pronto"
+    return [lg for lg in leagues if lg in why], why
+
 
 def budget(state: dict, odds: "Odds", t: datetime) -> dict:
     """Reparte los créditos que quedan entre los días que faltan de mes, para no quedarse sin ellos."""
@@ -1015,8 +982,6 @@ def run(password: str, force: bool = False):
     close_updates = 0
 
     # 4) búsqueda completa cada X horas (o si la pides desde la web)
-    last = state.get("last_scan")
-    full = force or not last or pt(last) <= t - timedelta(hours=a["horas_entre_busquedas"]) + timedelta(minutes=10)
     leagues = list(s["ligas"])
     if "tennis_all" in leagues:
         leagues.remove("tennis_all")
@@ -1027,6 +992,11 @@ def run(password: str, force: bool = False):
         except Exception as e:
             report.append(f"⚠️ No pude leer los torneos de tenis activos: {h(e)}")
     budget(state, odds, t)
+    # turnos: primero las ligas que hace más tiempo que no se revisan (así el cupo llega a todos los deportes)
+    llast = state.setdefault("league_last", {})
+    leagues.sort(key=lambda l: llast.get(l, ""))
+    due, why = due_leagues(state, odds, leagues, t, a["horas_entre_busquedas"], force)
+    full = bool(due)
     if odds.paused and not op_ok():
         full = False
     if full and not force and not can_spend(state, odds) and not op_ok():
@@ -1035,11 +1005,10 @@ def run(password: str, force: bool = False):
             state["budget"]["warned"] = True
             report.append(f"💳 Hoy ya se han usado las consultas previstas ({state['budget']['allow']}). "
                           f"Sigo cobrando resultados, y mañana vuelvo a buscar. Quedan {odds.remaining}.")
-    # turnos: primero las ligas que hace más tiempo que no se revisan (así el cupo llega a todos los deportes)
-    llast = state.setdefault("league_last", {})
-    leagues.sort(key=lambda l: llast.get(l, ""))
-    sports = list(dict.fromkeys((leagues if full else []) + list(soon)))
-    DIAG.append(f"busqueda: completa={full} ultima={state.get('last_scan')} cada={a['horas_entre_busquedas']}h "
+    if not full:
+        due = []
+    sports = list(dict.fromkeys(due + list(soon)))
+    DIAG.append(f"busqueda: ligas={ {k: why[k] for k in due} } ultima={state.get('last_scan')} cada={a['horas_entre_busquedas']}h "
                 f"oddsapi_pausa={odds.paused} oddspapi_ok={op_ok()} (dia {opb.get('used', 0) - opb.get('used_start', 0)}"
                 f"/{opb.get('allow')}) ligas={len(leagues)}")
     scan_summary = []
@@ -1055,8 +1024,12 @@ def run(password: str, force: bool = False):
         nonlocal op_warned
         if not odds.paused and can_spend(state, odds):
             try:
-                if not close and odds.events_count(sport, frm, to) == 0:   # gratis: sin partidos no se gasta
-                    return {}
+                if not close:                       # gratis: sin partidos no se gasta
+                    times = calendar(state, odds, sport, t)
+                    n_in = (sum(1 for x in times if frm <= pt(x) <= to) if times is not None
+                            else odds.events_count(sport, frm, to))
+                    if n_in == 0:
+                        return {}
                 return reference(odds.odds(sport, books, frm, to), a["metodo"])
             except QuotaOut:
                 pass
@@ -1099,7 +1072,7 @@ def run(password: str, force: bool = False):
         return None
 
     for sport in sports:
-        close = sport in soon and not full
+        close = sport in soon and sport not in due
         frm, to = (t, t + timedelta(hours=3, minutes=10)) if close else (t, t + timedelta(hours=a["horas_vista"]))
         ref = get_ref(sport, frm, to, close)
         if ref is None:
@@ -1131,7 +1104,7 @@ def run(password: str, force: bool = False):
                     b["close_min"] = int((pt(b["commence"]) - t).total_seconds() // 60)
                     if first:
                         clv_now.setdefault(b["event"], []).append(b)
-        if sport not in leagues or not full:
+        if sport not in due:
             continue
         cands = find_value(ref, s, allowed, METHODS["valor"], sport)
         best_ev, nbooks = None, set()
@@ -1177,6 +1150,8 @@ def run(password: str, force: bool = False):
                 real_msgs.append(f"💶 <b>APUESTA REAL</b>\n<b>{h(b['event'])}</b> · {local(b['commence'])}\n"
                                  f"Entra en <b>{h(b['book'])}</b> y apuesta a <b>{h(b['selection'])}</b>\n"
                                  f"Cuota: <b>{b['odds']:.2f}</b> (no bajes de {b['min_odds']:.2f})\n"
+                                 + (f"Ojo: en esta casa sueles conseguir algo menos (≈{b['odds_esperada']:.2f}); el importe ya lo tiene en cuenta.\n"
+                                    if b.get("odds_esperada") else "") +
                                  f"Importe: <b>{b['stake']:.2f} €</b> ({pc(b['bank_pct'] or 0).lstrip('+')} de tu banca)\n"
                                  f"Después pulsa «La he hecho» en la web.")
     if clv_now:

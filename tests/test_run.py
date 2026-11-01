@@ -667,3 +667,48 @@ class Learning(unittest.TestCase):
         self.assertEqual(run.best_for(L, "soccer_epl"), "favoritos")
         self.assertEqual(run.best_for(L, "tennis_atp_paris"), "estricto")
         self.assertEqual(run.best_for(L, "handball_x"), "valor")                  # sin datos: el principal
+
+
+class Timing(unittest.TestCase):
+    def test_extra_search_when_matches_are_close(self):
+        t = datetime(2026, 11, 7, 12, 0, tzinfo=timezone.utc)
+        iso = run.iso
+
+        class O:
+            remaining, paused = "400", False
+
+            def event_times(self, sport, frm, to):
+                return {"liga_a": [iso(t + timedelta(hours=3))], "liga_b": [iso(t + timedelta(hours=20))]}.get(sport, [])
+        state = {"budget": {"day": "x", "start": 400, "allow": 15},
+                 "league_last": {"liga_a": iso(t - timedelta(hours=10)), "liga_b": iso(t - timedelta(hours=10)),
+                                 "liga_c": iso(t - timedelta(hours=2))}}
+        due, why = run.due_leagues(state, O(), ["liga_a", "liga_b", "liga_c"], t, 24, False)
+        self.assertEqual(due, ["liga_a"])                       # partido en 3 h y última búsqueda hace 10 h
+        self.assertEqual(why["liga_a"], "partidos pronto")
+        # sin presupuesto del día no hay búsquedas extra
+        state["budget"]["start"] = 415
+        state.pop("cal")
+        self.assertEqual(run.due_leagues(state, O(), ["liga_a"], t, 24, False)[0], [])
+        # la búsqueda diaria de turno sigue mandando
+        state["league_last"]["liga_b"] = iso(t - timedelta(hours=25))
+        self.assertEqual(run.due_leagues(state, O(), ["liga_b"], t, 24, False)[0], ["liga_b"])
+
+
+class Slippage(unittest.TestCase):
+    def test_learns_real_odds_per_book(self):
+        state = {}
+        for got in (1.94, 1.95, 1.96):
+            run.record_slip(state, {"book_key": "winamax_fr", "odds": 2.0}, got)
+        run.record_slip(state, {"book_key": "winamax_fr", "odds": 2.0}, None)
+        self.assertAlmostEqual(run.slip_factor(state, "winamax_fr"), 0.975)
+        self.assertEqual(state["slip"]["winamax_fr"]["miss"], 1)
+        self.assertIsNone(run.slip_factor(state, "bet365"))
+
+
+class LabShowcase(unittest.TestCase):
+    def test_lucky_methods_are_flagged_and_sorted_down(self):
+        import lab
+        lucky = {"train": {"n": 300, "roi": 0.12, "sd": 1.0}, "val": {"n": 120, "roi": -0.04, "sd": 1.0, "lb": -0.2, "clv": 0}}
+        good = {"train": {"n": 300, "roi": 0.02, "sd": 1.0}, "val": {"n": 120, "roi": 0.05, "sd": 1.0, "lb": -0.1, "clv": 0}}
+        self.assertEqual(lab.verdict(lucky), "suerte")
+        self.assertGreater(lab.showcase_score(good), lab.showcase_score(lucky))

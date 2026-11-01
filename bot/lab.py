@@ -491,6 +491,28 @@ def promote(state_lab: dict, pid: str, how: str) -> str | None:
     return f"✅ Lab #{pid} pasado a la cartera ficticia ({how})."
 
 
+def showcase_score(m: dict) -> float:
+    v = m.get("val", {})
+    n = v.get("n") or 0
+    if n < 20:
+        return -1.0 + n / 1000
+    return (v.get("roi") or 0) * n / (n + SHRINK) - (v.get("sd") or 1.0) / math.sqrt(n)
+
+
+def verdict(m: dict) -> str:
+    """Etiqueta clara para la web."""
+    t, v = m.get("train", {}), m.get("val", {})
+    if classify(m):
+        return "validado"
+    if (v.get("n") or 0) < 20:
+        return "pocos datos"
+    if (t.get("roi") or 0) > 0 and (v.get("roi") or 0) <= 0:
+        return "suerte"            # ganó en el pasado pero no en lo reciente
+    if (v.get("roi") or 0) > 0:
+        return "prometedor"
+    return "pierde"
+
+
 def total(m: dict) -> dict:
     """Pasado + reciente juntos: lo que ha ganado o perdido el método con todo lo observado."""
     t, v = m.get("train", {}), m.get("val", {})
@@ -501,15 +523,16 @@ def total(m: dict) -> dict:
 
 def summary(state_lab: dict, lab: dict) -> dict:
     """Lo que necesita la web (pequeño, va en el estado cifrado)."""
-    # escaparate: los 10 que más ganan (con al menos 20 apuestas simuladas), de más a menos
-    pop = sorted(state_lab.get("pop", []), key=lambda p: (total(p["m"])["n"] >= 20, total(p["m"])["roi"]), reverse=True)
+    # escaparate: los 10 mejores por lo que ganan en lo RECIENTE (datos que no usaron para «aprender»),
+    # encogido según el número de apuestas: así no salen arriba los que solo tuvieron suerte en el pasado
+    pop = sorted(state_lab.get("pop", []), key=lambda p: -showcase_score(p["m"]))
     return {
         "gen": state_lab.get("gen", 0), "tried": state_lab.get("tried", 0),
         "rows": len(lab["rows"]), "events": len(lab["events"]),
         "resolved": sum(1 for e in lab["events"].values() if e[5] is not None),
         "last": state_lab.get("last_day"),
-        "top": [{"id": p["id"], "desc": describe(p["g"]), "m": p["m"], "born": p.get("born"), "tot": total(p["m"])}
-                for p in pop[:10]],
+        "top": [{"id": p["id"], "desc": describe(p["g"]), "m": p["m"], "born": p.get("born"), "tot": total(p["m"]),
+                 "estado": verdict(p["m"])} for p in pop[:10]],
         "pending": [{"id": q["id"], "desc": q["desc"], "m": q["m"], "since": q["since"]} for q in state_lab.get("pending", [])],
         "promoted": [{"id": q["id"], "desc": q["desc"], "m": q["m"], "since": q["since"], "how": q.get("how"),
                       "retired": q.get("retired")} for q in state_lab.get("promoted", [])],
