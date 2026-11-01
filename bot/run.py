@@ -127,8 +127,8 @@ def decrypt_bytes(blob: bytes, password: str) -> bytes:
     return AESGCM(_key(password, salt)).decrypt(iv, blob[31:], None)
 
 
-LAB_SECONDS = 90        # tiempo de laboratorio en cada pasada (GitHub la ejecuta cada 20-60 min)
-LAB_MAX_GENS = 30
+LAB_SECONDS = 180       # tiempo de laboratorio en cada pasada (GitHub la ejecuta cada 20-60 min)
+LAB_MAX_GENS = 200
 
 
 def lab_path() -> Path:
@@ -507,6 +507,16 @@ def apply_inbox(state, inbox: list[dict]) -> list[str]:
     for act in inbox:
         if act.get("id") in done:
             continue
+        if act.get("type") in ("lab_add", "lab_real"):
+            r = labm.promote(state.setdefault("lab", {}), act.get("lab", ""),
+                             "elegido por ti" if act["type"] == "lab_add" else "elegido por ti para el modo real")
+            if r:
+                msgs.append(r)
+            if act["type"] == "lab_real":
+                state["_set_real"] = "lab_" + act.get("lab", "")
+                msgs.append(f"💶 El modo real usará Lab #{act.get('lab', '')} (piloto automático desactivado).")
+            done.add(act.get("id"))
+            continue
         if act.get("type") in ("lab_ok", "lab_no"):
             r = labm.decide(state.setdefault("lab", {}), act.get("lab", ""), act["type"] == "lab_ok")
             if r:
@@ -791,6 +801,9 @@ def run(password: str, force: bool = False):
         telegram(s, "🔄 Modo ficticio reiniciado: todos los métodos vuelven a empezar con su dinero inicial.")
     inbox = read_enc("inbox.enc", password, [])
     inbox_msgs = apply_inbox(state, inbox)
+    if state.get("_set_real"):
+        s["real"]["metodo"] = state.pop("_set_real")
+        (DATA / "settings.enc").write_text(encrypt(s, password))
     refresh_methods(state)
     for k in ALL:
         L.setdefault("f_" + k, {"bets": []})

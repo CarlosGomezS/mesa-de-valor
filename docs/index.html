@@ -299,7 +299,7 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
         <div id="labProm"></div>
       </div>
       <details class="card" open>
-        <summary><b>Mejores métodos en prueba</b></summary>
+        <summary><b>Los 10 mejores del laboratorio</b> <span class="small muted" id="labTried"></span></summary>
         <p class="small muted">«Pasado» son los partidos más antiguos; «Reciente», los últimos. Un método solo se propone si gana en los dos por separado, para descartar la suerte.</p>
         <div id="labTop" style="display:flex;flex-direction:column;gap:8px"></div>
       </details>
@@ -725,6 +725,10 @@ function labCard(p,kind){
   const nums=v.n!=null?`<div class="nums"><span>Pasado: <b>${t.n||0}</b> apuestas, <b class="${col(t.roi)}">${pc1(t.roi||0)}</b></span><span>Reciente: <b>${v.n||0}</b> apuestas, <b class="${col(v.roi)}">${pc1(v.roi||0)}</b></span>
     <span>Peor probable (reciente): <b class="${col(v.lb)}">${v.n?pc1(v.lb):'—'}</b></span><span>CLV reciente: <b class="${col(v.clv)}">${v.n_clv?pc1(v.clv):'—'}</b></span></div>`:'';
   let tail='';
+  if(kind==='top'){const promoted=(STATE?.lab_summary?.promoted||[]).some(q=>q.id===p.id&&!q.retired);const tt=p.tot||{n:0,roi:0};
+    tail=`<div class="small">Con todo lo observado: <b>${tt.n}</b> apuestas simuladas, <b class="${col(tt.roi)}">${pc1(tt.roi)}</b></div>
+      <div class="row">${promoted?'<span class="chip c-ok">Ya está en ficticio</span>':`<button class="btn sm" data-labadd="${p.id}">Pasar a ficticio</button>`}
+      <button class="btn sm ghost" data-labreal="${p.id}">Pasar a real</button></div>`}
   if(kind==='pend')tail=`<div class="row"><button class="btn sm" data-labok="${p.id}">Aprobar: pasar a ficticio</button><button class="btn sm ghost" data-labno="${p.id}">Rechazar</button></div>`;
   if(kind==='prom'){const k='lab_'+p.id,x=stats(ledgerOf('f_'+k),SETTINGS.ficticio.banca_inicial);
     tail=`<div class="small">${p.retired?`<span class="chip c-n">Retirado el ${esc(p.retired)}</span>`:'<span class="chip c-ok">Apostando en ficticio</span>'} · ${x.done.length} apuestas terminadas · <b class="${col(x.pnl)}">${sEur(x.pnl)}</b>
@@ -751,9 +755,23 @@ function renderLab(){
   $('labStatus').textContent=`Generación ${L_.gen}${L_.last?' · última: '+L_.last:''}. `+'Prueba métodos nuevos sin parar, en cada pasada del bot. '+(L_.resolved<300?'Aún hay pocos partidos terminados: las primeras propuestas suelen tardar unas semanas.':'');
   $('labPendBox').hidden=!(L_.pending||[]).length;$('labPend').innerHTML=(L_.pending||[]).map(p=>labCard(p,'pend')).join('');
   $('labProm').innerHTML=(L_.promoted||[]).length?L_.promoted.slice().reverse().map(p=>labCard(p,'prom')).join(''):'<p class="small muted">Todavía ninguno. Cuando un método supere la prueba, te lo propondré aquí y por Telegram.</p>';
+  $('labTried').textContent=`· de ${L_.tried.toLocaleString('es-ES')} probados, de más a menos ganancia`;
   $('labTop').innerHTML=(L_.top||[]).map(p=>labCard(p,'top')).join('')||'<p class="small muted">Sin métodos todavía.</p>';
 }
 document.addEventListener('click',async e=>{
+  const add=e.target.dataset.labadd,real=e.target.dataset.labreal;
+  if(add||real){
+    if(!TOKEN){toast('Pon tu token de GitHub en Ajustes');return}
+    if(real&&e.target.dataset.armed!=='1'){e.target.dataset.armed='1';e.target.textContent='¿Seguro? Pulsa otra vez';
+      toast('Este método aún no ha demostrado nada con dinero real. Mejor pásalo antes a ficticio.');setTimeout(()=>{e.target.dataset.armed='';e.target.textContent='Pasar a real'},5000);return}
+    e.target.disabled=true;
+    try{const f=await readFile('docs/data/inbox.enc');const inbox=f?await dec(f.text,PW):[];
+      inbox.push({id:crypto.randomUUID(),type:add?'lab_add':'lab_real',lab:add||real,ts:new Date().toISOString()});
+      await writeFile('docs/data/inbox.enc',await enc(inbox.slice(-300),PW),'laboratorio');
+      toast(add?'Hecho: empezará a apostar en ficticio en la próxima pasada del bot.':'Hecho: el modo real usará este método (actívalo en Ajustes si no lo está).');
+      e.target.textContent=add?'Enviado a ficticio':'Enviado a real';
+    }catch(err){toast('No se pudo guardar: '+err.message);e.target.disabled=false}
+    return}
   const ok=e.target.dataset.labok,no=e.target.dataset.labno,see=e.target.dataset.labsee;
   if(see){e.preventDefault();METHOD=see;ls.set('mv.method',METHOD);setMode('ficticio');document.querySelector('nav button[data-v="inicio"]').click();return}
   if(!ok&&!no)return;

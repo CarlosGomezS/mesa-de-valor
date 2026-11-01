@@ -27,7 +27,7 @@ import zlib
 from datetime import datetime, timezone
 
 # ------------------------------------------------------------------ umbrales
-POP_SIZE = 90            # métodos vivos en el laboratorio
+POP_SIZE = 120           # métodos vivos en el laboratorio (los demás se descartan, pero se sigue inventando sin fin)
 NEW_PER_GEN = 60         # métodos nuevos por generación
 MAX_ROWS = 150_000       # memoria máxima de observaciones (las más antiguas se olvidan)
 MAX_EVENTS = 40_000
@@ -474,15 +474,42 @@ def decide(state_lab: dict, pid: str, ok: bool) -> str | None:
     return f"🚫 Lab #{pid} rechazado: el laboratorio no lo volverá a proponer."
 
 
+def promote(state_lab: dict, pid: str, how: str) -> str | None:
+    """Pasa un método del laboratorio a la cartera ficticia a mano (esté propuesto o no)."""
+    promoted = state_lab.setdefault("promoted", [])
+    q = next((x for x in promoted if x["id"] == pid), None)
+    if q:
+        q.pop("retired", None)
+        return None
+    src = next((x for x in state_lab.get("pending", []) if x["id"] == pid), None) or \
+        next((x for x in state_lab.get("pop", []) if x["id"] == pid), None)
+    if not src:
+        return None
+    state_lab["pending"] = [x for x in state_lab.get("pending", []) if x["id"] != pid]
+    promoted.append({"id": pid, "g": src["g"], "m": src.get("m", {}), "desc": src.get("desc") or describe(src["g"]),
+                     "since": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "how": how})
+    return f"✅ Lab #{pid} pasado a la cartera ficticia ({how})."
+
+
+def total(m: dict) -> dict:
+    """Pasado + reciente juntos: lo que ha ganado o perdido el método con todo lo observado."""
+    t, v = m.get("train", {}), m.get("val", {})
+    n = (t.get("n") or 0) + (v.get("n") or 0)
+    roi = ((t.get("roi") or 0) * (t.get("n") or 0) + (v.get("roi") or 0) * (v.get("n") or 0)) / n if n else 0.0
+    return {"n": n, "roi": round(roi, 4)}
+
+
 def summary(state_lab: dict, lab: dict) -> dict:
     """Lo que necesita la web (pequeño, va en el estado cifrado)."""
-    pop = sorted(state_lab.get("pop", []), key=lambda p: -fitness(p["m"]))
+    # escaparate: los 10 que más ganan (con al menos 20 apuestas simuladas), de más a menos
+    pop = sorted(state_lab.get("pop", []), key=lambda p: (total(p["m"])["n"] >= 20, total(p["m"])["roi"]), reverse=True)
     return {
         "gen": state_lab.get("gen", 0), "tried": state_lab.get("tried", 0),
         "rows": len(lab["rows"]), "events": len(lab["events"]),
         "resolved": sum(1 for e in lab["events"].values() if e[5] is not None),
         "last": state_lab.get("last_day"),
-        "top": [{"id": p["id"], "desc": describe(p["g"]), "m": p["m"], "born": p.get("born")} for p in pop[:15]],
+        "top": [{"id": p["id"], "desc": describe(p["g"]), "m": p["m"], "born": p.get("born"), "tot": total(p["m"])}
+                for p in pop[:10]],
         "pending": [{"id": q["id"], "desc": q["desc"], "m": q["m"], "since": q["since"]} for q in state_lab.get("pending", [])],
         "promoted": [{"id": q["id"], "desc": q["desc"], "m": q["m"], "since": q["since"], "how": q.get("how"),
                       "retired": q.get("retired")} for q in state_lab.get("promoted", [])],
