@@ -1044,7 +1044,11 @@ def run(password: str, force: bool = False):
             continue
         cands = find_value(ref, s, allowed, METHODS["valor"], sport)
         best_ev, nbooks = None, set()
+        in_w = sum(1 for r_ in ref.values() if 20 <= (pt(r_["commence"]) - t).total_seconds() / 60 <= a["horas_vista"] * 60)
         for r_ in ref.values():
+            m_ = (pt(r_["commence"]) - t).total_seconds() / 60
+            if m_ < 20 or m_ > a["horas_vista"] * 60:
+                continue                       # fuera de la ventana: no cuenta para el diagnóstico
             for k_, b_ in r_["books"].items():
                 if k_ == "pinnacle" or (allowed and k_ not in allowed):
                     continue
@@ -1055,8 +1059,9 @@ def run(password: str, force: bool = False):
                     if p_:
                         e_ = st.ev_back(p_, pr_, com_)
                         best_ev = e_ if best_ev is None or e_ > best_ev else best_ev
-        DIAG.append(f"valor {sport}: {len(ref)} partidos con Pinnacle, casas {sorted(nbooks)}, "
-                    f"mejor valor {best_ev * 100:+.1f} %" if best_ev is not None else f"valor {sport}: sin casas tuyas con cuota")
+        DIAG.append(f"valor {sport}: {len(ref)} partidos con Pinnacle ({in_w} en ventana), casas {sorted(nbooks)}, "
+                    f"mejor valor en ventana {best_ev * 100:+.1f} %, candidatas {len(cands)}"
+                    if best_ev is not None else f"valor {sport}: {len(ref)} partidos, ninguno con cuota tuya en las próximas {a['horas_vista']} h")
         in_window = sum(1 for r in ref.values()
                         if 20 <= (pt(r["commence"]) - t).total_seconds() / 60 <= a["horas_vista"] * 60)
         scan_summary.append((sport, len(ref), in_window, len(cands)))
@@ -1064,6 +1069,7 @@ def run(password: str, force: bool = False):
             for k, m in ALL.items():
                 for b in place(state, s, sport, cands if k == "valor" else find_value(ref, s, allowed, m, sport), "f_" + k, m):
                     new_fict.setdefault(b["event"], []).append((m["nombre"], b))
+                    NEWBETS[k] = NEWBETS.get(k, 0) + 1
         rkey = auto_best if s["real"].get("metodo") == "auto" else s["real"].get("metodo")
         if s["real"]["activo"] and rkey in ALL:
             rm = ALL[rkey]
@@ -1207,6 +1213,9 @@ def run(password: str, force: bool = False):
                     f"{' (agotada)' if op.dead else ''}")
     DIAG.append(f"cuotas: usadas {odds.used}, quedan {odds.remaining or state.get('credits')}, pausa {odds.paused}"
                 f"{' (' + odds.quota_msg[:60] + ')' if odds.quota_msg else ''}")
+    if NEWBETS:
+        DIAG.append("nuevas: " + ", ".join(f"{k} {v}" for k, v in sorted(NEWBETS.items())))
+    NEWBETS.clear()
     DIAG.append(f"cobradas {len(settled_now)}, abiertas {sum(1 for b in all_bets if b['status'] == 'abierta')}, "
                 f"lab filas {len(labdata['rows'])}, gen {st_lab.get('gen', 0)}")
     write_diag(t)
@@ -1224,6 +1233,7 @@ def run(password: str, force: bool = False):
 
 
 DIAG: list[str] = []
+NEWBETS: dict = {}
 
 
 def write_diag(t: datetime):
