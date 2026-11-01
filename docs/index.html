@@ -101,6 +101,7 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
 .mp-v{font:600 14px var(--f-m);font-variant-numeric:tabular-nums;white-space:nowrap}
 .mp-v.muted{font:400 12px var(--f-b);color:var(--muted)}
 .mp-ar{color:var(--muted)}
+.mp-p{font:600 12px var(--f-m);color:var(--warn);background:var(--warn-soft);border-radius:99px;padding:2px 7px;white-space:nowrap}
 .mp-list{position:absolute;z-index:8;left:0;right:0;top:calc(100% + 4px);max-height:62vh;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .mp-list button{background:none;border:0;border-bottom:1px solid var(--line);padding:11px 12px}
 .mp-list button:last-child{border-bottom:0}
@@ -680,12 +681,13 @@ $('comp').addEventListener('click',e=>{const tr=e.target.closest('tr[data-m]');i
 
 /* ---------- desplegable de métodos con colores ---------- */
 let MDATA=[];
+const pendTag=d=>d.pend?`<span class="mp-p" title="${d.pend} apuesta${d.pend>1?'s':''} pendiente${d.pend>1?'s':''}">⏳ ${d.pend}</span>`:'';
 const pnlTag=d=>d.done?`<span class="mp-v ${d.pnl>0?'pos':d.pnl<0?'neg':''}">${d.pnl>0?'▲ ':d.pnl<0?'▼ ':''}${sEur(d.pnl)}</span>`:'<span class="mp-v muted">sin resultados</span>';
 function drawPicker(el){
   const cur=MDATA.find(d=>d.k===METHOD)||MDATA[0];if(!cur)return;const open=el.classList.contains('open');
-  el.innerHTML=`<button type="button" class="mp-btn" aria-haspopup="listbox" aria-expanded="${open}"><span class="mp-n">${esc(cur.n)}</span>${pnlTag(cur)}<span class="mp-ar">▾</span></button>
+  el.innerHTML=`<button type="button" class="mp-btn" aria-haspopup="listbox" aria-expanded="${open}"><span class="mp-n">${esc(cur.n)}</span>${pendTag(cur)}${pnlTag(cur)}<span class="mp-ar">▾</span></button>
     <div class="mp-list" role="listbox" ${open?'':'hidden'}>${MDATA.map((d,i)=>`<button type="button" role="option" data-k="${d.k}" class="${d.k===METHOD?'sel':''}" aria-selected="${d.k===METHOD}">
-      <span class="mp-i">${i+1}</span><span class="mp-n">${esc(d.n)}</span>${pnlTag(d)}</button>`).join('')}</div>`;
+      <span class="mp-i">${i+1}</span><span class="mp-n">${esc(d.n)}</span>${pendTag(d)}${pnlTag(d)}</button>`).join('')}</div>`;
 }
 document.addEventListener('click',e=>{
   const pick=e.target.closest('.mpick');
@@ -835,7 +837,7 @@ function renderState(){
   $('realOff').hidden=!(real&&!SETTINGS.real.activo);
   $('methodBox').hidden=real;$('compBox').hidden=real;
   {const fb=SETTINGS.ficticio.banca_inicial;
-   MDATA=Object.entries(METHODS).map(([k,m])=>{const x=stats(ledgerOf('f_'+k),fb);return {k,n:m.n,pnl:x.pnl,done:x.done.length}})
+   MDATA=Object.entries(METHODS).map(([k,m])=>{const x=stats(ledgerOf('f_'+k),fb);return {k,n:m.n,pnl:x.pnl,done:x.done.length,pend:ledgerOf('f_'+k).filter(b=>b.status==='abierta').length}})
      .sort((a,b)=>(b.done?b.pnl:-1e-9)-(a.done?a.pnl:-1e-9)||b.done-a.done);
    $('method').innerHTML=MDATA.map(d=>`<option value="${d.k}">${esc(d.n)}</option>`).join('');
    document.querySelectorAll('.mpick').forEach(drawPicker)}
