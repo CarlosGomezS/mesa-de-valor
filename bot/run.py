@@ -491,7 +491,7 @@ def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict
              "event": f"{r['home']} - {r['away']}", "commence": r["commence"],
              "selection": "Empate" if outcome == "Draw" else outcome, "outcome_key": outcome,
              "book": title, "book_key": key, "odds": price, "min_odds": round(1 + ((1 + a["valor_minimo"]) / p - 1) / (1 - com), 2), "com": com,
-             "stake": stake, "fair_p": round(p, 4), "ev": round(ev, 4), "close_fair_odds": None,
+             "stake": stake, "bank_pct": round(stake / bank, 4) if bank > 0 else None, "fair_p": round(p, 4), "ev": round(ev, 4), "close_fair_odds": None,
              "status": "propuesta" if name == "real" else "abierta", "pnl": None, "settled": None,
              "method": next((k for k, v in ALL.items() if v is m), "valor")}
         bets.append(b)
@@ -1077,7 +1077,7 @@ def run(password: str, force: bool = False):
                 real_msgs.append(f"💶 <b>APUESTA REAL</b>\n<b>{h(b['event'])}</b> · {local(b['commence'])}\n"
                                  f"Entra en <b>{h(b['book'])}</b> y apuesta a <b>{h(b['selection'])}</b>\n"
                                  f"Cuota: <b>{b['odds']:.2f}</b> (no bajes de {b['min_odds']:.2f})\n"
-                                 f"Importe: <b>{b['stake']:.2f} €</b>\n"
+                                 f"Importe: <b>{b['stake']:.2f} €</b> ({pc(b['bank_pct'] or 0).lstrip('+')} de tu banca)\n"
                                  f"Después pulsa «La he hecho» en la web.")
     if clv_now:
         lines = ["📏 <b>Cuota de cierre tomada</b> (positivo = cogiste mejor precio que el mercado)"]
@@ -1102,7 +1102,8 @@ def run(password: str, force: bool = False):
                 groups.setdefault((b["selection"], b["odds"], b["book"]), []).append((mname, b))
             for (sel, o, book), ms in groups.items():
                 lines.append(f"• {h(sel)} a {o:.2f} en {h(book)} (valor {pc(ms[0][1]['ev'])})")
-                lines.append("   " + h(", ".join(f"{mn} {b['stake']:.2f}€".replace(".", ",") for mn, b in ms)))
+                lines.append("   " + h(", ".join(f"{mn} {b['stake']:.2f}€ ({(b.get('bank_pct') or 0) * 100:.1f} %)".replace(".", ",")
+                                             for mn, b in ms)))
         report.append("\n".join(lines))
     if full and odds.paused and not scan_summary:
         full = False                      # se quedó sin consultas al empezar: no hay búsqueda que contar

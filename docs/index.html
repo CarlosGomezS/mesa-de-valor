@@ -594,10 +594,10 @@ function histCSV(){
   const real=MODE==='real',L=ledgerOf(ledgerKey()).filter(b=>b.status!=='propuesta').slice().sort((a,b)=>new Date(a.commence)-new Date(b.commence));
   const b0=real?SETTINGS.real.banca_inicial:SETTINGS.ficticio.banca_inicial;let bank=b0;
   const n=x=>x==null||x===''?'':String(x).replace('.',',');const q=x=>'"'+String(x??'').replace(/"/g,'""')+'"';
-  const rows=[['Fecha','Hora','Partido','Apuesta','Casa','Cuota','Importe (€)','Valor (%)','Cuota justa','Cuota de cierre','CLV (%)','Resultado','Ganancia (€)','Banca (€)']];
+  const rows=[['Fecha','Hora','Partido','Apuesta','Casa','Cuota','Importe (€)','% de la banca','Valor (%)','Cuota justa','Cuota de cierre','CLV (%)','Resultado','Ganancia (€)','Banca (€)']];
   for(const b of L){const d=new Date(b.commence);if(b.pnl!=null)bank+=b.pnl;
     rows.push([d.toLocaleDateString('es-ES'),d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}),q(b.event),q(b.selection),q(b.book),
-      n(b.odds.toFixed(2)),n(b.stake.toFixed(2)),n((b.ev*100).toFixed(1)),n((1/b.fair_p).toFixed(2)),b.close_fair_odds?n(b.close_fair_odds.toFixed(2)):'',
+      n(b.odds.toFixed(2)),n(b.stake.toFixed(2)),bankPct(b)!=null?n((bankPct(b)*100).toFixed(2)):'',n((b.ev*100).toFixed(1)),n((1/b.fair_p).toFixed(2)),b.close_fair_odds?n(b.close_fair_odds.toFixed(2)):'',
       b.close_fair_odds?n(((b.odds/b.close_fair_odds-1)*100).toFixed(1)):'',{ganada:'Ganada',perdida:'Perdida',nula:'Anulada',abierta:'Pendiente',descartada:'No hecha'}[b.status]||b.status,
       b.pnl!=null?n(b.pnl.toFixed(2)):'',b.pnl!=null?n(bank.toFixed(2)):''])}
   const name=(real?'real':METHODS[METHOD].n).normalize('NFD').replace(/[^\w ]/g,'').trim().replace(/ +/g,'-').toLowerCase();
@@ -804,19 +804,28 @@ function betCard(b,kind){
   const clv=b.close_fair_odds?` · CLV ${sPct(b.odds/b.close_fair_odds-1)}`:'';
   let html=`<div class="bet ${kind==='prop'?'prop':''}"><div class="t"><b>${esc(b.event)}</b>${res}</div>
     <div class="small muted">${when(b.commence)}</div>
-    <div class="where">${kind==='prop'?'Entra en ':''}<b>${esc(b.book)}</b> · ${esc(b.selection)} a <b>${b.odds.toFixed(2)}</b> · <b>${eur(b.stake)}</b></div>
+    <div class="where">${kind==='prop'?'Entra en ':''}<b>${esc(b.book)}</b> · ${esc(b.selection)} a <b>${b.odds.toFixed(2)}</b> · <b>${eur(b.stake)}</b>${pctTxt(b)?` <span class="small">(${pctTxt(b)})</span>`:''}</div>
     <div class="small muted">Valor ${sPct(b.ev)} · cuota justa ${(1/b.fair_p).toFixed(2)}${clv}</div>`;
   if(kind==='prop')html+=`<div class="small">No apuestes si la cuota baja de <b>${(b.min_odds||0).toFixed(2)}</b>.</div>
     <div class="grid"><label>Cuota conseguida<input type="number" step="0.01" id="po-${b.id}" value="${b.odds}"></label><label>Importe (€)<input type="number" step="0.1" id="ps-${b.id}" value="${b.stake}"></label></div>
     <div class="row"><button class="btn real sm" data-done="${b.id}">La he hecho</button><button class="btn ghost sm" data-no="${b.id}">No la hice</button></div>`;
   return html+'</div>';
 }
+// % de la banca de esa apuesta: el guardado o, en apuestas antiguas, reconstruido con la banca de ese momento
+function bankPct(b){
+  if(b.bank_pct!=null)return b.bank_pct;
+  for(const [k,L] of Object.entries(STATE?.ledgers||{})){const bets=L.bets||[];if(!bets.includes(b))continue;
+    const b0=k==='real'?SETTINGS.real.banca_inicial:SETTINGS.ficticio.banca_inicial;
+    const bank=b0+bets.filter(x=>x!==b&&x.pnl!=null&&x.settled&&x.settled<=b.created).reduce((a,x)=>a+x.pnl,0);
+    return bank>0?b.stake/bank:null}
+  return null}
+const pctTxt=b=>{const p=bankPct(b);return p==null?'':(p*100).toLocaleString('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1})+' % banca'};
 function betRow(b){
   const chip=b.status==='ganada'?`<span class="chip c-ok">${sEur(b.pnl)}</span>`:b.status==='perdida'?`<span class="chip c-bad">${sEur(b.pnl)}</span>`:
     b.status==='descartada'?'<span class="chip c-n">No hecha</span>':'<span class="chip c-w">Pendiente</span>';
   const t=new Date(b.commence).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
   const clv=b.close_fair_odds?` · CLV ${sPct(b.odds/b.close_fair_odds-1)}`:'';
-  return `<details class="brow"><summary><span class="bt">${t}</span><span class="bm"><b>${esc(b.event)}</b><span class="small muted">${esc(b.selection)} · ${b.odds.toFixed(2)} · ${eur(b.stake)}</span></span>${chip}</summary>
+  return `<details class="brow"><summary><span class="bt">${t}</span><span class="bm"><b>${esc(b.event)}</b><span class="small muted">${esc(b.selection)} · ${b.odds.toFixed(2)} · ${eur(b.stake)}${pctTxt(b)?' · <b>'+pctTxt(b)+'</b>':''}</span></span>${chip}</summary>
     <div class="small muted bd">${esc(b.book)} · valor ${sPct(b.ev)} · cuota justa ${(1/b.fair_p).toFixed(2)}${clv}</div></details>`;
 }
 function byDay(bets,desc,openFirst){
