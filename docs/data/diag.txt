@@ -1,6 +1,12 @@
-2026-11-01T07:58:44Z
+2026-11-01T08:20:18Z
 fd: con clave
-busqueda: completa=False ultima=2026-11-01T01:27:47Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 10/8) ligas=7
+busqueda: completa=True ultima=2026-11-01T01:27:47Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 10/8) ligas=7
+valor tennis_atp_paris_masters: sin casas tuyas con cuota
+valor tennis_atp_swiss_indoors: 1 partidos con Pinnacle, casas ['betfair_ex_eu', 'betfair_sb_uk', 'winamax_fr'], mejor valor -0.0 %
+valor tennis_atp_vienna_open: 1 partidos con Pinnacle, casas ['betfair_ex_eu', 'betfair_sb_uk', 'winamax_fr'], mejor valor -1.2 %
+valor soccer_spain_la_liga: 5 partidos con Pinnacle, casas ['betfair_ex_eu', 'betfair_sb_uk', 'winamax_fr'], mejor valor -1.3 %
+valor soccer_epl: 2 partidos con Pinnacle, casas ['betfair_ex_eu', 'betfair_sb_uk', 'winamax_fr'], mejor valor -1.0 %
+valor handball_germany_bundesliga: 3 partidos con Pinnacle, casas ['winamax_fr'], mejor valor +4.8 %
 oddspapi: usadas 0 en esta pasada, 10 este mes de 250
-cuotas: usadas 2, quedan 496, pausa False
-cobradas 4, abiertas 3, lab filas 697, gen 1711
+cuotas: usadas 6, quedan 490, pausa False
+cobradas 0, abiertas 3, lab filas 778, gen 1741
