@@ -683,6 +683,25 @@ def learn(state: dict) -> dict:
     return out
 
 
+def method_seeds(state: dict) -> list[dict]:
+    """Los métodos fijos que mejor van, traducidos a «genes» para que el laboratorio los mezcle y mejore."""
+    a = DEFAULT_SETTINGS["avanzado"]
+    ranked = sorted((k for k in METHODS if k not in ("control", "auto")),
+                    key=lambda k: -method_stats(state["ledgers"].get("f_" + k, {"bets": []})["bets"])["pnl"])
+    seeds = []
+    for k in ranked[:6]:
+        m = METHODS[k]
+        if m["ref"] not in ("pinnacle", "consensus", "both"):
+            continue
+        mn = m.get("min_ev") if m.get("min_ev") is not None else a["valor_minimo"]
+        out = m.get("outcome") if m.get("outcome") in ("home", "draw", "away", "fav", "dog") else None
+        seeds.append({"ref": m["ref"], "min_ev": mn, "max_ev": m.get("max_ev") or a["valor_maximo"],
+                      "min_odds": m.get("min_odds") or 1.01, "max_odds": m.get("max_odds"), "outcome": out,
+                      "sport": m.get("sport"), "league": None, "min_h": m.get("min_h") or 0, "max_h": m.get("max_h"),
+                      "drift": None, "kf": m.get("kf") or 0.25})
+    return seeds
+
+
 def best_for(learned: dict, sport: str) -> str:
     rows = learned.get(family(sport)) or []
     return rows[0]["k"] if rows and rows[0]["score"] > 0 and rows[0]["k"] in ALL else "valor"
@@ -1262,6 +1281,7 @@ def run(password: str, force: bool = False):
         leagues_seen = sorted({e[0] for e in labdata["events"].values()})
         t_lab, gens = _time.monotonic(), 0
         while gens == 0 or (_time.monotonic() - t_lab < LAB_SECONDS and gens < LAB_MAX_GENS):
+            st_lab["seeds"] = method_seeds(state)
             labm.evolve(st_lab, labdata, leagues_seen)
             gens += 1
         live = {p["id"]: method_stats(state["ledgers"].get("f_lab_" + p["id"], {"bets": []})["bets"])

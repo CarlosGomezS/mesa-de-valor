@@ -336,6 +336,7 @@ def evolve(state_lab: dict, lab: dict, leagues: list[str], seed: int | None = No
         p["m"] = evaluate(p["g"], lab, split)
     pop.sort(key=lambda p: -fitness(p["m"]))
     parents = [p["g"] for p in pop[:12]] or [random_genome(rng, leagues) for _ in range(6)]
+    parents += state_lab.get("seeds", [])          # también aprende de los métodos fijos que ya funcionan
     new = []
     while len(new) < NEW_PER_GEN:
         r = rng.random()
