@@ -1,11 +1,8 @@
-2026-11-01T15:22:30Z
+2026-11-01T19:26:41Z
 fd: con clave
-fd soccer_spain_la_liga: pedidos 1, encontrados 1
-busqueda: ligas={'soccer_spain_la_liga': 'partidos pronto', 'soccer_epl': 'partidos pronto', 'handball_germany_bundesliga': 'partidos pronto'} ultima=2026-11-01T08:20:18Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 10/8) ligas=6
-valor soccer_spain_la_liga: 3 partidos con Pinnacle (3 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'winamax_fr'], mejor valor en ventana -1.6 %, candidatas 0
-valor soccer_epl: 2 partidos con Pinnacle (2 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'winamax_fr'], mejor valor en ventana +2.7 %, candidatas 0
-valor handball_germany_bundesliga: 2 partidos con Pinnacle (1 en ventana), casas ['winamax_fr'], mejor valor en ventana +1.3 %, candidatas 0
+fd soccer_epl: pedidos 4, encontrados 2
+fd soccer_spain_la_liga: pedidos 2, encontrados 1
+busqueda: ligas={} ultima=2026-11-01T15:22:30Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 10/8) ligas=5
 oddspapi: usadas 0 en esta pasada, 10 este mes de 250
-cuotas: usadas 3, quedan 482, pausa False
-nuevas: cerca 1, volumen 1
-cobradas 1, abiertas 22, lab filas 837, gen 2201
+cuotas: usadas 0, quedan 482, pausa False
+cobradas 5, abiertas 19, lab filas 837, gen 2401
