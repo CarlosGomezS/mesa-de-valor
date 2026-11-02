@@ -1,7 +1,8 @@
-2026-11-01T22:58:34Z
+2026-11-02T02:16:30Z
 fd: con clave
-fd soccer_spain_la_liga: pedidos 2, encontrados 2
-busqueda: ligas={} ultima=2026-11-01T15:22:30Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 10/8) ligas=5
-oddspapi: usadas 0 en esta pasada, 10 este mes de 250
-cuotas: usadas 0, quedan 482, pausa False
-cobradas 2, abiertas 17, lab filas 837, gen 2601
+op resultado: HTTP 404: {"error":{"message":"No scores found for the speci
+busqueda: ligas={'tennis_atp_paris_masters': 'partidos pronto'} ultima=2026-11-01T15:22:30Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=5
+valor tennis_atp_paris_masters: 21 partidos con Pinnacle (21 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'winamax_fr'], mejor valor en ventana +0.4 %, candidatas 0
+oddspapi: usadas 1 en esta pasada, 11 este mes de 250
+cuotas: usadas 7, quedan 469, pausa False
+cobradas 14, abiertas 3, lab filas 935, gen 2801
