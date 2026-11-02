@@ -1,7 +1,6 @@
-2026-11-02T08:05:01Z
+2026-11-02T08:06:33Z
 fd: con clave
-op resultado: HTTP 404: {"error":{"message":"No scores found for the speci
-busqueda: ligas={} ultima=2026-11-02T02:16:30Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 1/8) ligas=5
-oddspapi: usadas 1 en esta pasada, 12 este mes de 250
-cuotas: usadas 1, quedan 467, pausa False
-cobradas 0, abiertas 3, lab filas 935, gen 3001
+busqueda: ligas={} ultima=2026-11-02T02:16:30Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 2/8) ligas=5
+oddspapi: usadas 0 en esta pasada, 12 este mes de 250
+cuotas: usadas 0, quedan 467, pausa False
+cobradas 0, abiertas 3, lab filas 935, gen 3201
