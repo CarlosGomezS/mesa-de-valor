@@ -1,8 +1,6 @@
-2026-11-02T08:16:40Z
+2026-11-02T08:26:51Z
 fd: con clave
-busqueda: ligas={'soccer_uefa_champs_league': 'turno'} ultima=2026-11-02T02:16:30Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 2/8) ligas=5
-valor soccer_uefa_champs_league: 9 partidos con Pinnacle (9 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'winamax_fr'], mejor valor en ventana -0.4 %, candidatas 0
+busqueda: ligas={} ultima=2026-11-02T08:16:40Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 2/8) ligas=5
 oddspapi: usadas 0 en esta pasada, 12 este mes de 250
-cuotas: usadas 1, quedan 466, pausa False
-nuevas: consenso 1
-cobradas 0, abiertas 3, lab filas 1013, gen 3401
+cuotas: usadas 0, quedan 466, pausa False
+cobradas 0, abiertas 4, lab filas 1013, gen 3601
