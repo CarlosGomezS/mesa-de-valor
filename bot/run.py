@@ -1301,9 +1301,11 @@ def run(password: str, force: bool = False):
     NEWBETS.clear()
     DIAG.append(f"cobradas {len(settled_now)}, abiertas {sum(1 for b in all_bets if b['status'] == 'abierta')}, "
                 f"lab filas {len(labdata['rows'])}, gen {st_lab.get('gen', 0)}")
-    write_diag(t)
     idle = (not full and not settled_now and not close_updates and not inbox_msgs and not report
-            and not real_msgs and odds.used == 0 and not lab_changed and not (op and op.calls))
+            and not real_msgs and odds.used == 0 and not lab_changed and not (op and op.calls)
+            and os.environ.get("FORZAR", "").lower() not in ("no", "si", "sí"))   # pedida desde la web: guardar siempre
+    if not idle:
+        write_diag(t)
     if idle:          # nada nuevo: no se guarda, así no se publica la web cada 10 minutos
         print("Pasada sin cambios")
         return

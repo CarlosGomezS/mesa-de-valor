@@ -814,11 +814,10 @@ $('refresh').onclick=async()=>{
   let secs=0;btn.textContent='Revisando… 0 s';
   const tick=setInterval(async()=>{secs+=5;btn.textContent='Revisando… '+secs+' s';
     if(secs%15)return;
-    let run=null;try{run=await lastRun()}catch(e){}
-    const done=run&&run.created_at>=t0.slice(0,19)&&run.status==='completed';
-    if(done||secs>=240){clearInterval(tick);
-      await new Promise(r=>setTimeout(r,done?8000:0));      // da tiempo a que se publique el estado nuevo
-      await loadState();refreshing=false;btn.disabled=false;btn.textContent='Actualizar';
+    // el bot trabaja en relevo continuo: se da por terminado cuando guarda un estado posterior a la petición
+    try{await loadState()}catch(e){}
+    const done=!!(STATE?.updated&&STATE.updated>=t0.slice(0,19));
+    if(done||secs>=420){clearInterval(tick);refreshing=false;btn.disabled=false;btn.textContent='Actualizar';
       const d=diffBets(before);const parts=[];
       if(d.won)parts.push(d.won+' ganada'+(d.won>1?'s':''));if(d.lost)parts.push(d.lost+' perdida'+(d.lost>1?'s':''));
       if(d.nul)parts.push(d.nul+' anulada'+(d.nul>1?'s':''));if(d.neu)parts.push(d.neu+' nueva'+(d.neu>1?'s':''));
@@ -831,7 +830,7 @@ $('scanNow').onclick=async()=>{if(!TOKEN){toast('Pon tu token de GitHub en Ajust
   const tick=setInterval(async()=>{secs+=10;btn.textContent='Buscando… '+secs+' s';
     if(secs%20===0){await loadState();const sm=STATE?.last_scan_summary;
       if(sm&&sm.ts!==before){clearInterval(tick);btn.disabled=false;btn.textContent='Buscar ahora';showScan(true)}}
-    if(secs>=300){clearInterval(tick);btn.disabled=false;btn.textContent='Buscar ahora';toast('La búsqueda tarda más de lo normal. Pulsa «Actualizar» en un rato.')}},10000);
+    if(secs>=480){clearInterval(tick);btn.disabled=false;btn.textContent='Buscar ahora';toast('La búsqueda tarda más de lo normal. Pulsa «Actualizar» en un rato.')}},10000);
   btn.textContent='Buscando… 0 s'};
 function showScan(fresh){const sm=STATE?.last_scan_summary,box=$('scanBox');if(!sm){box.hidden=true;return}
   box.hidden=false;box.className='note '+(sm.found?'ok':'');

@@ -2,8 +2,8 @@ name: Mesa de Valor
 
 on:
   schedule:
-    # GitHub retrasa o salta muchas ejecuciones programadas; pedirlo cada 10 min hace que en la
-    # práctica pase cada 20-60 min. Las pasadas sin nada que hacer no gastan consultas de cuotas.
+    # GitHub solo cumple la programación cada pocas horas: cada ejecución hace pasadas cada 10 min
+    # durante 5 h y media y lanza la siguiente (bot/ciclo.sh). La programada queda de reserva.
     - cron: "3,13,23,33,43,53 * * * *"
   workflow_dispatch:
     inputs:
@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  actions: write      # para lanzar el relevo y ver si hay otra ejecución esperando
 
 concurrency:
   group: mesa
@@ -21,42 +22,18 @@ concurrency:
 jobs:
   pasada:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install cryptography==43.0.3
-      - name: Recuperar memoria del laboratorio
-        continue-on-error: true
-        run: |
-          if git fetch -q --depth=1 origin lab-data 2>/dev/null; then git show FETCH_HEAD:lab.enc > lab.enc; else echo "El laboratorio aún no tiene memoria"; fi
-      - name: Ejecutar
-        continue-on-error: true
+      - name: Pasadas cada 10 min (relevo continuo)
         env:
           APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
           FORZAR: ${{ github.event.inputs.forzar }}
-        run: |
-          if [ -z "$APP_PASSWORD" ]; then echo "Aún no hay contraseña: termina la configuración desde la web."; exit 0; fi
-          python bot/run.py
-      - name: Guardar estado
-        continue-on-error: true
-        run: |
-          git config user.name "mesa-bot"
-          git config user.email "mesa-bot@users.noreply.github.com"
-          git add docs/data/state.enc docs/data/diag.txt docs/data/settings.enc 2>/dev/null || git add docs/data/state.enc
-          git diff --cached --quiet && exit 0
-          git commit -m "estado"
-          for i in 1 2 3; do git pull --rebase -X theirs && git push && break; sleep 5; done
-      - name: Guardar memoria del laboratorio
-        continue-on-error: true
-        env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          [ -s lab.enc ] || exit 0
-          if git fetch -q --depth=1 origin lab-data 2>/dev/null && git show FETCH_HEAD:lab.enc | cmp -s - lab.enc; then echo "Sin cambios"; exit 0; fi
-          rm -rf "$RUNNER_TEMP/lab" && mkdir "$RUNNER_TEMP/lab" && cp lab.enc "$RUNNER_TEMP/lab/" && cd "$RUNNER_TEMP/lab"
-          git init -q -b lab-data && git add lab.enc
-          git -c user.name=mesa-bot -c user.email=mesa-bot@users.noreply.github.com commit -qm "memoria del laboratorio"
-          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" lab-data
+          if [ -z "$APP_PASSWORD" ]; then echo "Aún no hay contraseña: termina la configuración desde la web."; exit 0; fi
+          bash bot/ciclo.sh
