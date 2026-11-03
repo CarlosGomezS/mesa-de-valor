@@ -1,6 +1,7 @@
-2026-11-03T12:29:14Z
+2026-11-03T12:39:39Z
 fd: con clave
+op resultado: no encuentro Novak Djokovic - Valentin Vacherot
 busqueda: ligas={} ultima=2026-11-03T08:14:51Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 4/7) ligas=5
-oddspapi: usadas 0 en esta pasada, 26 este mes de 250
+oddspapi: usadas 1 en esta pasada, 27 este mes de 250
 cuotas: usadas 0, quedan 450, pausa False
-cobradas 0, abiertas 13, lab filas 1140, gen 36801
+cobradas 0, abiertas 13, lab filas 1140, gen 37001
