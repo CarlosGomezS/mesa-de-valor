@@ -1,7 +1,6 @@
-2026-11-05T02:06:30Z
+2026-11-05T02:16:56Z
 fd: con clave
-busqueda: ligas={'tennis_atp_paris_masters': 'turno'} ultima=2026-11-04T23:09:22Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
-valor tennis_atp_paris_masters: 8 partidos con Pinnacle (8 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'winamax_fr'], mejor valor en ventana +0.5 %, candidatas 0
+busqueda: ligas={} ultima=2026-11-05T02:06:30Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
 oddspapi: usadas 0 en esta pasada, 36 este mes de 250
-cuotas: usadas 1, quedan 431, pausa False
-cobradas 0, abiertas 21, lab filas 1246, gen 81001
+cuotas: usadas 1, quedan 429, pausa False
+cobradas 0, abiertas 21, lab filas 1246, gen 81201
