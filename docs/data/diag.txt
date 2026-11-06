@@ -1,7 +1,8 @@
-2026-11-06T22:51:36Z
+2026-11-06T23:01:39Z
 fd: con clave
-fd soccer_uefa_champs_league: pedidos 1, encontrados 0
-busqueda: ligas={} ultima=2026-11-06T12:00:44Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 7/7) ligas=5
+busqueda: ligas={'soccer_spain_la_liga': 'turno', 'soccer_uefa_champs_league': 'turno', 'handball_germany_bundesliga': 'turno'} ultima=2026-11-06T12:00:44Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
+valor soccer_spain_la_liga: 4 partidos con Pinnacle (4 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'winamax_fr'], mejor valor en ventana -0.6 %, candidatas 0
 oddspapi: usadas 0 en esta pasada, 51 este mes de 250
-cuotas: usadas 0, quedan 402, pausa False
-cobradas 0, abiertas 25, lab filas 1393, gen 134201
+cuotas: usadas 2, quedan 399, pausa False
+nuevas: consenso 1, control 4
+cobradas 0, abiertas 25, lab filas 1429, gen 134401
