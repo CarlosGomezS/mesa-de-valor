@@ -1,8 +1,6 @@
-2026-11-06T12:10:43Z
+2026-11-06T12:20:58Z
 fd: con clave
-op resultado: no encuentro Tommy Paul - Holger Rune
-op resultado: no encuentro Ignacio Buse - Daniil Medvedev
-busqueda: ligas={} ultima=2026-11-06T12:00:44Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 0/7) ligas=5
-oddspapi: usadas 7 en esta pasada, 51 este mes de 250
+busqueda: ligas={} ultima=2026-11-06T12:00:44Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 7/7) ligas=5
+oddspapi: usadas 0 en esta pasada, 51 este mes de 250
 cuotas: usadas 0, quedan 402, pausa False
-cobradas 0, abiertas 31, lab filas 1393, gen 121401
+cobradas 1, abiertas 30, lab filas 1393, gen 121601
