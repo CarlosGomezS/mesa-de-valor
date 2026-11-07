@@ -1,7 +1,6 @@
-2026-11-07T05:06:34Z
+2026-11-07T05:16:40Z
 fd: con clave
-busqueda: ligas={'soccer_spain_la_liga': 'partidos pronto'} ultima=2026-11-07T04:36:21Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
-valor soccer_spain_la_liga: 6 partidos con Pinnacle (6 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'winamax_fr'], mejor valor en ventana +0.4 %, candidatas 0
+busqueda: ligas={} ultima=2026-11-07T05:06:34Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
 oddspapi: usadas 0 en esta pasada, 51 este mes de 250
-cuotas: usadas 1, quedan 395, pausa False
-cobradas 0, abiertas 31, lab filas 1523, gen 141801
+cuotas: usadas 1, quedan 393, pausa False
+cobradas 0, abiertas 31, lab filas 1523, gen 142001
