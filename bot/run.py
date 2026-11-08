@@ -1054,6 +1054,7 @@ def run(password: str, force: bool = False):
                     n_in = (sum(1 for x in times if frm <= pt(x) <= to) if times is not None
                             else odds.events_count(sport, frm, to))
                     if n_in == 0:
+                        DIAG.append(f"{sport}: sin partidos en las próximas {a['horas_vista']} h según el calendario (no gasto consulta)")
                         return {}
                 evs = odds.odds(sport, books, frm, to)
                 ref_ = reference(evs, a["metodo"])
