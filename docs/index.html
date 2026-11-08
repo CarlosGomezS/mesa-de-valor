@@ -368,6 +368,7 @@ details.brow>summary{list-style:none;display:grid;grid-template-columns:44px 1fr
         <label class="chk"><input type="checkbox" id="aFOn"> Activado</label>
         <label>Dinero de prueba por método (€)<input type="number" id="aFBank" step="1"></label>
         <label class="chk"><input type="checkbox" id="aFNotify"> Avisarme en Telegram de las apuestas ficticias</label>
+        <label class="chk"><input type="checkbox" id="aFExtra"> Buscar también en otras casas con licencia en España (William Hill, 888sport, Betsson, Codere, LeoVegas, Unibet) para encontrar más oportunidades en ficticio. No gasta más consultas. El modo real sigue usando solo tus casas.</label>
         <button class="btn sm ghost" id="aFReset" style="align-self:flex-start">Empezar el ficticio de cero</button>
       </div>
       <div class="card" style="border-color:var(--real)">
@@ -546,7 +547,7 @@ const PROFILES={
 const PROFILE_TXT={prudente:'Solo apuestas con al menos un 3 % de ventaja, importes pequeños (máx. 4 % de la banca) y parada si pierdes un 10 % en un día.',
  normal:'Algo más de apuestas (desde 2,5 % de ventaja) e importes un poco mayores. Más rápido, pero con más altibajos.',
  personal:'Has cambiado los ajustes avanzados a mano.'};
-const DEFAULTS={odds_api_key:'',fd_key:'',op_key:'',op_limit:250,telegram_token:'',telegram_chat_id:'',ficticio:{activo:true,banca_inicial:50,avisar:true},
+const DEFAULTS={odds_api_key:'',fd_key:'',op_key:'',op_limit:250,telegram_token:'',telegram_chat_id:'',ficticio:{activo:true,banca_inicial:50,avisar:true,casas_extra:true},
  real:{activo:false,banca_inicial:50,metodo:'auto'},ligas:LEAGUES_V2.slice(),ligas_version:4,casas:MY_BOOKS.slice(),casas_v:2,resumen_diario:true,perfil:'prudente',
  avanzado:{valor_minimo:0.03,valor_maximo:0.15,fraccion_kelly:0.25,tope:0.04,minima:0.5,limite_diario:0.10,limite_semanal:0.20,parar_si_cae:0.40,max_dia:6,max_exposicion:0.30,horas_vista:30,horas_entre_busquedas:6,metodo:'power'}};
 const merge=(a,b)=>{const o={...a};for(const k in b||{})o[k]=(b[k]&&typeof b[k]==='object'&&!Array.isArray(b[k])&&a[k])?merge(a[k],b[k]):b[k];return o};
@@ -946,7 +947,7 @@ document.addEventListener('click',async e=>{
 function fillSettings(){
   const s=SETTINGS;renderBonos();
   $('aProfile').value=s.perfil||'prudente';$('profileTxt').textContent=PROFILE_TXT[$('aProfile').value];
-  $('aFOn').checked=s.ficticio.activo;$('aFBank').value=s.ficticio.banca_inicial;$('aFNotify').checked=s.ficticio.avisar;
+  $('aFOn').checked=s.ficticio.activo;$('aFBank').value=s.ficticio.banca_inicial;$('aFNotify').checked=s.ficticio.avisar;$('aFExtra').checked=s.ficticio.casas_extra!==false;
   $('aROn').checked=s.real.activo;$('aRAuto').checked=s.real.metodo==='auto';$('aRBank').value=s.real.banca_inicial;$('aRAck').checked=s.real.activo;
   $('aLeagues').innerHTML=LEAGUES.map(([k,n])=>`<label class="chk"><input type="checkbox" value="${k}" ${s.ligas.includes(k)?'checked':''}> ${n}</label>`).join('');
   $('aBooks').innerHTML=BOOKS.map(([k,n,note,off])=>`<label class="chk"${off?' style="opacity:.55"':''}><input type="checkbox" value="${k}" ${s.casas.includes(k)&&!off?'checked':''} ${off?'disabled':''}>
@@ -971,7 +972,7 @@ $('aSave').onclick=async()=>{
   const s=structuredClone(SETTINGS),msg=$('aMsg');
   if($('aROn').checked&&!$('aRAck').checked){msg.innerHTML='<span class="neg">Para activar el modo real marca la casilla de confirmación.</span>';return}
   s.perfil=$('aProfile').value;
-  s.ficticio={activo:$('aFOn').checked,banca_inicial:+$('aFBank').value||50,avisar:$('aFNotify').checked};
+  s.ficticio={activo:$('aFOn').checked,banca_inicial:+$('aFBank').value||50,avisar:$('aFNotify').checked,casas_extra:$('aFExtra').checked};
   s.real={activo:$('aROn').checked,banca_inicial:+$('aRBank').value||0,metodo:$('aRAuto').checked?'auto':(SETTINGS.real.metodo==='auto'?'valor':SETTINGS.real.metodo||'valor')};
   s.ligas=[...$('aLeagues').querySelectorAll('input:checked')].map(i=>i.value);
   s.casas=[...$('aBooks').querySelectorAll('input:checked')].map(i=>i.value);

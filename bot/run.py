@@ -34,7 +34,7 @@ MAD = ZoneInfo("Europe/Madrid")
 
 DEFAULT_SETTINGS = {
     "odds_api_key": "", "fd_key": "", "op_key": "", "op_limit": 250, "telegram_token": "", "telegram_chat_id": "",
-    "ficticio": {"activo": True, "banca_inicial": 50.0, "avisar": True},
+    "ficticio": {"activo": True, "banca_inicial": 50.0, "avisar": True, "casas_extra": True},
     "real": {"activo": False, "banca_inicial": 50.0, "metodo": "auto"},
     "ligas": ["soccer_spain_la_liga", "soccer_spain_segunda_division", "soccer_efl_champ",
               "basketball_euroleague", "tennis_all", "handball_germany_bundesliga"],
@@ -55,16 +55,16 @@ METHODS = {
     "estricto":    {"nombre": "Valor alto (5 %+)", "ref": "pinnacle", "min_ev": 0.05, "max_odds": 4.0},
     "volumen":     {"nombre": "Volumen (1,5 %+)", "ref": "pinnacle", "min_ev": 0.015},
     "favoritos":   {"nombre": "Favoritos con valor", "ref": "pinnacle", "min_ev": 0.02, "max_odds": 2.2},
-    "medias":      {"nombre": "Cuotas medias (1,6–3)", "ref": "pinnacle", "min_odds": 1.6, "max_odds": 3.0},
+    "medias":      {"nombre": "Cuotas medias (1,6–3)", "ref": "pinnacle", "min_odds": 1.6, "max_odds": 3.0, "min_ev": 0.02},
     "longshots":   {"nombre": "Sorpresas con valor", "ref": "pinnacle", "min_ev": 0.05, "min_odds": 4.0},
     "empates":     {"nombre": "Solo empates", "ref": "pinnacle", "min_ev": 0.02, "outcome": "draw"},
-    "tenis":       {"nombre": "Solo tenis", "ref": "pinnacle", "sport": "tennis"},
-    "balonmano":   {"nombre": "Solo balonmano", "ref": "pinnacle", "sport": "handball"},
+    "tenis":       {"nombre": "Solo tenis", "ref": "pinnacle", "sport": "tennis", "min_ev": 0.02},
+    "balonmano":   {"nombre": "Solo balonmano", "ref": "pinnacle", "sport": "handball", "min_ev": 0.02},
     "cerca":       {"nombre": "Cerca del inicio (<6 h)", "ref": "pinnacle", "min_ev": 0.02, "max_h": 6},
     "anticipado":  {"nombre": "Con antelación (>12 h)", "ref": "pinnacle", "min_ev": 0.04, "min_h": 12},
     "steam":       {"nombre": "Movimiento de Pinnacle", "ref": "steam", "min_ev": 0.015},
-    "futbol":      {"nombre": "Solo fútbol", "ref": "pinnacle", "sport": "soccer"},
-    "baloncesto":  {"nombre": "Solo baloncesto", "ref": "pinnacle", "sport": "basketball"},
+    "futbol":      {"nombre": "Solo fútbol", "ref": "pinnacle", "sport": "soccer", "min_ev": 0.02},
+    "baloncesto":  {"nombre": "Solo baloncesto", "ref": "pinnacle", "sport": "basketball", "min_ev": 0.02},
     "francotirador": {"nombre": "Francotirador (1 al día)", "ref": "pinnacle", "min_ev": 0.04, "max_dia": 1},
     # --- otras referencias ---
     "consenso":    {"nombre": "Consenso de casas", "ref": "consensus", "min_ev": 0.05, "stake": "flat"},
@@ -215,10 +215,23 @@ def reference(events: list[dict], method: str) -> dict:
             if m:
                 books[b["key"]] = {"title": b["title"], "prices": {o["name"]: o["price"] for o in m["outcomes"]}}
         pin = books.get("pinnacle")
-        if not pin or len(pin["prices"]) < 2:
-            continue
-        names = list(pin["prices"])
-        fair = st.devig([pin["prices"][n] for n in names], method)
+        src = "pinnacle"
+        if pin and len(pin["prices"]) >= 2:
+            names = list(pin["prices"])
+            fair = st.devig([pin["prices"][n] for n in names], method)
+        else:
+            # sin Pinnacle (pasa mucho en balonmano): precio justo = consenso de al menos 3 casas
+            full = [b for b in books.values() if len(b["prices"]) >= 2]
+            if not full:
+                continue
+            names = list(max(full, key=lambda b: len(b["prices"]))["prices"])
+            sets = [[b["prices"][n] for n in names] for b in books.values()
+                    if all(n in b["prices"] and b["prices"][n] > 1 for n in names)]
+            if len(sets) < 3:
+                continue
+            ps = [st.devig(x, "mult") for x in sets]
+            fair = [sum(p[i] for p in ps) / len(ps) for i in range(len(names))]
+            src = "consenso"
         # consenso: media de las probabilidades sin margen de todas las casas con el mercado completo
         cons = [0.0] * len(names)
         nb = 0
@@ -228,7 +241,7 @@ def reference(events: list[dict], method: str) -> dict:
                     cons[i] += p
                 nb += 1
         out[ev["id"]] = {"home": ev["home_team"], "away": ev["away_team"], "commence": ev["commence_time"],
-                         "fair": dict(zip(names, fair)), "books": books,
+                         "fair": dict(zip(names, fair)), "books": books, "src": src,
                          "consensus": dict(zip(names, [c / nb for c in cons])) if nb >= 3 else None}
     return out
 
@@ -351,6 +364,9 @@ def record_slip(state: dict, b: dict, got: float | None):
         d["miss"] += 1
 
 
+EXTRA_BOOKS = ["williamhill", "sport888", "betsson", "codere_it", "leovegas_se", "unibet_fr"]
+
+
 def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict]:
     """Ficticio: apuesta directamente. Real: crea una propuesta que tú confirmas."""
     a = s["avanzado"]
@@ -364,6 +380,8 @@ def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict
         note(state, f"{name}: sin apuestas nuevas ({block})")
         return new
     for eid, r, ev, key, title, outcome, price, p in cands:
+        if name == "real" and r.get("src") == "consenso":
+            continue        # con dinero real solo se apuesta con Pinnacle como referencia
         if any(b["status"] != "descartada" and (b["event_id"] == eid or same_match(b, r["home"], r["away"], r["commence"]))
                for b in bets):
             continue
@@ -810,7 +828,14 @@ def run(password: str, force: bool = False):
     paused = bool(quota.get("retry_at")) and t < pt(quota["retry_at"])
     odds = Odds(s["odds_api_key"], paused=paused)
     books = s.get("casas") or []
-    allowed = set(books)
+    allowed = set(books)                    # casas del modo real (las que tienes)
+    # ficticio y laboratorio: además, otras casas con licencia en España, para encontrar más oportunidades
+    # (pedirlas a la vez no cuesta más: hasta 10 casas por consulta)
+    if allowed and s["ficticio"].get("casas_extra", True):
+        extra = [b for b in EXTRA_BOOKS if b not in allowed]
+        api_n = len([b for b in books if b not in ODDSAPI_MISSING]) + 1
+        books = books + extra[:max(0, 10 - api_n)]
+    allowed_f = set(books)
     all_bets = [b for L in state["ledgers"].values() for b in L["bets"]]
 
     # 1) propuestas reales no confirmadas antes del inicio -> descartadas
@@ -1030,7 +1055,12 @@ def run(password: str, force: bool = False):
                             else odds.events_count(sport, frm, to))
                     if n_in == 0:
                         return {}
-                return reference(odds.odds(sport, books, frm, to), a["metodo"])
+                evs = odds.odds(sport, books, frm, to)
+                ref_ = reference(evs, a["metodo"])
+                if len(ref_) < len(evs):
+                    n_pin = sum(1 for e in evs if any(b.get("key") == "pinnacle" for b in e.get("bookmakers", [])))
+                    DIAG.append(f"oddsapi {sport}: {len(evs)} partidos, {n_pin} con Pinnacle, {len(ref_)} utilizables")
+                return ref_
             except QuotaOut:
                 pass
             except Exception as e:
@@ -1087,7 +1117,7 @@ def run(password: str, force: bool = False):
             r["prev"] = (state["snapshots"].get(eid) or {}).get("fair")
             state["snapshots"][eid] = {"fair": r["fair"], "ts": iso(t), "commence": r["commence"]}
         n0 = len(labdata["rows"])
-        labm.observe(labdata, ref, sport, allowed)
+        labm.observe(labdata, ref, sport, allowed_f)
         lab_changed |= len(labdata["rows"]) != n0
         for b in all_bets:
             rr = match_ref(ref, b) if b["sport"] == sport and needs_close(b) else None
@@ -1114,7 +1144,7 @@ def run(password: str, force: bool = False):
             if m_ < 20 or m_ > a["horas_vista"] * 60:
                 continue                       # fuera de la ventana: no cuenta para el diagnóstico
             for k_, b_ in r_["books"].items():
-                if k_ == "pinnacle" or (allowed and k_ not in allowed):
+                if k_ == "pinnacle" or (allowed_f and k_ not in allowed_f):
                     continue
                 nbooks.add(k_)
                 com_ = 0.05 if k_.startswith("betfair_ex") else 0.0
@@ -1123,7 +1153,8 @@ def run(password: str, force: bool = False):
                     if p_:
                         e_ = st.ev_back(p_, pr_, com_)
                         best_ev = e_ if best_ev is None or e_ > best_ev else best_ev
-        DIAG.append(f"valor {sport}: {len(ref)} partidos con Pinnacle ({in_w} en ventana), casas {sorted(nbooks)}, "
+        n_cons = sum(1 for r_ in ref.values() if r_.get("src") == "consenso")
+        DIAG.append(f"valor {sport}: {len(ref)} partidos ({n_cons} sin Pinnacle, con consenso) ({in_w} en ventana), casas {sorted(nbooks)}, "
                     f"mejor valor en ventana {best_ev * 100:+.1f} %, candidatas {len(cands)}"
                     if best_ev is not None else f"valor {sport}: {len(ref)} partidos, ninguno con cuota tuya en las próximas {a['horas_vista']} h")
         in_window = sum(1 for r in ref.values()
@@ -1133,13 +1164,13 @@ def run(password: str, force: bool = False):
             for k, m in ALL.items():
                 if k == "auto":
                     continue
-                for b in place(state, s, sport, cands if k == "valor" else find_value(ref, s, allowed, m, sport), "f_" + k, m):
+                for b in place(state, s, sport, find_value(ref, s, allowed_f, m, sport), "f_" + k, m):
                     new_fict.setdefault(b["event"], []).append((m["nombre"], b))
                     NEWBETS[k] = NEWBETS.get(k, 0) + 1
             # autodidacta: usa las reglas del mejor método de este deporte, con su propia cartera
             via = best_for(learned, sport)
             vm = ALL[via]
-            for b in place(state, s, sport, cands if via == "valor" else find_value(ref, s, allowed, vm, sport), "f_auto", vm):
+            for b in place(state, s, sport, find_value(ref, s, allowed_f, vm, sport), "f_auto", vm):
                 b["method"], b["via"] = "auto", via
                 new_fict.setdefault(b["event"], []).append((f"Autodidacta (como {vm['nombre']})", b))
                 NEWBETS["auto"] = NEWBETS.get("auto", 0) + 1

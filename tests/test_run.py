@@ -712,3 +712,16 @@ class LabShowcase(unittest.TestCase):
         good = {"train": {"n": 300, "roi": 0.02, "sd": 1.0}, "val": {"n": 120, "roi": 0.05, "sd": 1.0, "lb": -0.1, "clv": 0}}
         self.assertEqual(lab.verdict(lucky), "suerte")
         self.assertGreater(lab.showcase_score(good), lab.showcase_score(lucky))
+
+
+class Consensus(unittest.TestCase):
+    def test_no_pinnacle_uses_consensus_of_three_books(self):
+        def bk(key, a, d, b):
+            return {"key": key, "title": key, "markets": [{"key": "h2h", "outcomes": [
+                {"name": "A", "price": a}, {"name": "Draw", "price": d}, {"name": "B", "price": b}]}]}
+        ev = {"id": "e1", "home_team": "A", "away_team": "B", "commence_time": "2026-11-09T18:00:00Z",
+              "bookmakers": [bk("winamax_fr", 1.8, 9, 3.6), bk("williamhill", 1.75, 9.5, 3.8), bk("betsson", 1.85, 8.5, 3.5)]}
+        ref = run.reference([ev], "power")
+        self.assertEqual(ref["e1"]["src"], "consenso")
+        self.assertAlmostEqual(sum(ref["e1"]["fair"].values()), 1, places=6)
+        self.assertEqual(run.reference([dict(ev, bookmakers=ev["bookmakers"][:2])], "power"), {})
