@@ -1,6 +1,14 @@
-2026-11-11T20:01:38Z
+2026-11-11T20:07:30Z
 fd: con clave
-busqueda: ligas={} ultima=2026-11-11T18:07:24Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 2/8) ligas=5
-oddspapi: usadas 0 en esta pasada, 68 este mes de 250
+busqueda: ligas={'basketball_nba': 'pedida', 'soccer_spain_la_liga': 'pedida', 'soccer_epl': 'pedida', 'soccer_uefa_champs_league': 'pedida', 'handball_germany_bundesliga': 'pedida', 'tennis_wta_finals': 'pedida'} ultima=2026-11-11T18:07:24Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 2/8) ligas=6
+op versión v4
+op deportes soccer=10, basketball=11, tennis=12, handball=22
+op ligas encontradas 13/15
+op mercados soccer=101, basketball=111, tennis=121, handball=223
+op casas sport888->888sport.es (.es), bet365->bet365.es (.es), betfair_ex_eu->betfair-ex, betfair_sb_uk->betfair.es (.es), betsson->betsson, betway->betway.es (.es), codere_it->codere.es (.es), leovegas->leovegas.es (.es), pinnacle->pinnacle, williamhill->williamhill, winamax_fr->winamax.es (.es)
+op basketball_nba: 10 partidos
+valor basketball_nba: 10 partidos (0 sin Pinnacle, con consenso) (10 en ventana), casas ['winamax_fr'], mejor valor en ventana -0.8 %, candidatas 0
+oddspapi: usadas 9 en esta pasada, 77 este mes de 250
 cuotas: usadas 0, quedan 346, pausa False
-cobradas 0, abiertas 5, lab filas 2041, gen 275001
+nuevas: agresivo 2, auto 2, baloncesto 2, cerca 2, control 5, estricto 2, favoritos 2, francotirador 1, plano 2, valor 2, volumen 2
+cobradas 0, abiertas 5, lab filas 2061, gen 275201
