@@ -851,7 +851,7 @@ function betCard(b,kind){
   const clv=b.close_fair_odds?` · CLV ${sPct(b.odds/b.close_fair_odds-1)}`:'';
   let html=`<div class="bet ${kind==='prop'?'prop':''}"><div class="t"><b>${esc(b.event)}</b>${res}</div>
     <div class="small muted">${when(b.commence)}</div>
-    <div class="where">${kind==='prop'?'Entra en ':''}<b>${esc(b.book)}</b> · ${esc(b.selection)} a <b>${b.odds.toFixed(2)}</b> · <b>${eur(b.stake)}</b>${pctTxt(b)?` <span class="small">(${pctTxt(b)})</span>`:''}</div>
+    <div class="where">${kind==='prop'?'Entra en ':''}<b>${esc(b.book)}</b> · ${esc(b.selection)} a <b>${b.odds.toFixed(2)}</b> · <b>${eur(b.stake)}</b>${pctTxt(b)?` <span class="small">(${pctTxt(b)})</span>`:''}${b.tipo==='exploracion'?' <span class="small muted" title="Prueba sin ventaja clara para que el método aprenda; importe fijo pequeño. Nunca se hace en real.">🔎 exploración</span>':''}</div>
     <div class="small muted">Valor ${sPct(b.ev)} · cuota justa ${(1/b.fair_p).toFixed(2)}${clv}</div>`;
   if(kind==='prop')html+=`<div class="small">No apuestes si la cuota baja de <b>${(b.min_odds||0).toFixed(2)}</b>.</div>
     <div class="grid"><label>Cuota conseguida<input type="number" step="0.01" id="po-${b.id}" value="${b.odds}"></label><label>Importe (€)<input type="number" step="0.1" id="ps-${b.id}" value="${b.stake}"></label></div>
@@ -872,7 +872,7 @@ function betRow(b){
     b.status==='descartada'?'<span class="chip c-n">No hecha</span>':'<span class="chip c-w">Pendiente</span>';
   const t=new Date(b.commence).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
   const clv=b.close_fair_odds?` · CLV ${sPct(b.odds/b.close_fair_odds-1)}`:'';
-  return `<details class="brow"><summary><span class="bt">${t}</span><span class="bm"><b>${esc(b.event)}</b><span class="small muted">${esc(b.selection)} · ${b.odds.toFixed(2)} · ${eur(b.stake)}${pctTxt(b)?' · <b>'+pctTxt(b)+'</b>':''}</span></span>${chip}</summary>
+  return `<details class="brow"><summary><span class="bt">${t}</span><span class="bm"><b>${esc(b.event)}</b><span class="small muted">${esc(b.selection)} · ${b.odds.toFixed(2)} · ${eur(b.stake)}${pctTxt(b)?' · <b>'+pctTxt(b)+'</b>':''}${b.tipo==='exploracion'?' · 🔎 exploración':''}</span></span>${chip}</summary>
     <div class="small muted bd">${esc(b.book)} · valor ${sPct(b.ev)} · cuota justa ${(1/b.fair_p).toFixed(2)}${clv}</div></details>`;
 }
 function byDay(bets,desc,openFirst){

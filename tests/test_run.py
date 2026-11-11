@@ -725,3 +725,26 @@ class Consensus(unittest.TestCase):
         self.assertEqual(ref["e1"]["src"], "consenso")
         self.assertAlmostEqual(sum(ref["e1"]["fair"].values()), 1, places=6)
         self.assertEqual(run.reference([dict(ev, bookmakers=ev["bookmakers"][:2])], "power"), {})
+
+
+class Exploration(unittest.TestCase):
+    def test_every_method_gets_a_small_flagged_bet_when_no_value(self):
+        s = run.merge(run.DEFAULT_SETTINGS, {})
+        start = datetime.now(UTC) + timedelta(hours=3)
+        # cuotas casi justas: ningún método llega a su umbral
+        e = ev("e9", start, (2.30, 3.30, 3.30), (2.36, 3.35, 3.40))
+        e["bookmakers"][1]["key"] = "williamhill"
+        ref = run.reference([e], "power")
+        m = run.METHODS["valor"]
+        self.assertEqual(run.find_value(ref, s, set(), m, "soccer_spain_la_liga"), [])
+        cands = run.find_value(ref, s, set(), m, "soccer_spain_la_liga", explore=True)
+        self.assertTrue(cands)
+        state = {"ledgers": {"f_valor": {"bets": []}, "real": {"bets": []}}, "snapshots": {}}
+        run.refresh_methods(state)
+        bets = run.place(state, s, "soccer_spain_la_liga", cands[:1], "f_valor", m, explore=True)
+        self.assertEqual(len(bets), 1)
+        self.assertEqual(bets[0]["tipo"], "exploracion")
+        self.assertAlmostEqual(bets[0]["stake"], max(s["avanzado"]["minima"], 50 * run.FLAT_PCT), places=2)
+        self.assertEqual(run.explore_left(state, "f_valor"), run.EXPLORE_PER_DAY - 1)
+        # en real nunca
+        self.assertEqual(run.place(state, s, "soccer_spain_la_liga", [c for c in cands if c[1]["src"] == "x"], "real", m), [])

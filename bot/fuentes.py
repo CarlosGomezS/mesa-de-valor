@@ -127,3 +127,29 @@ class FootballData:
         with urllib.request.urlopen(req, timeout=30) as r:
             self.calls += 1
             return (json.loads(r.read().decode() or "{}") or {}).get("matches", [])
+
+
+# ---------------- ESPN: resultados gratis (sin clave) de la NBA ----------------
+ESPN_PATHS = {"basketball_nba": "basketball/nba"}
+
+
+def espn_finished(sport: str, days: list) -> list[dict]:
+    """Partidos terminados de esos días, en formato de The Odds API (nombres completos de equipo)."""
+    out = []
+    for d in sorted(set(days)):
+        url = (f"https://site.api.espn.com/apis/site/v2/sports/{ESPN_PATHS[sport]}/scoreboard?"
+               + urllib.parse.urlencode({"dates": d.strftime("%Y%m%d"), "limit": 100}))
+        data = http_json(url)[0] or {}
+        for ev in data.get("events", []):
+            comp = (ev.get("competitions") or [{}])[0]
+            if not ((comp.get("status") or ev.get("status") or {}).get("type") or {}).get("completed"):
+                continue
+            teams = {c.get("homeAway"): c for c in comp.get("competitors", [])}
+            if "home" not in teams or "away" not in teams:
+                continue
+            hn, an = teams["home"]["team"]["displayName"], teams["away"]["team"]["displayName"]
+            out.append({"id": "espn_" + str(ev.get("id")), "completed": True, "commence_time": ev.get("date"),
+                        "home_team": hn, "away_team": an,
+                        "scores": [{"name": hn, "score": str(teams["home"].get("score"))},
+                                   {"name": an, "score": str(teams["away"].get("score"))}]})
+    return out

@@ -78,9 +78,14 @@ METHODS = {
     "auto":        {"nombre": "Autodidacta (mejor por deporte)", "ref": "auto"},
 }
 FLAT_PCT = 0.01
-PLAN_V = 4
+PLAN_V = 5
 PLAN_LEAGUES = ["soccer_spain_la_liga", "soccer_epl", "soccer_uefa_champs_league",
-                "handball_germany_bundesliga", "tennis_all"]
+                "handball_germany_bundesliga", "tennis_all", "basketball_nba"]
+# exploración (solo ficticio): si un método no encuentra nada con su umbral, prueba su mejor opción
+# del día aunque la ventaja sea pequeña o nula, con importe fijo pequeño. Así todos los métodos
+# apuestan y aprenden; el modo real nunca hace esto.
+EXPLORE_MIN = -0.02          # nunca más de un 2 % por debajo del precio justo
+EXPLORE_PER_DAY = 2          # como mucho 2 apuestas de exploración por método y día
 PLAN_MSG: list = []
 ALL: dict = dict(METHODS)        # métodos fijos + los que el laboratorio ha promovido
 
@@ -141,7 +146,7 @@ def merge(base: dict, over: dict) -> dict:
 
 
 from fuentes import (http_json, ODDSAPI_MISSING, QuotaOut, Odds, FD_CODES,  # noqa: E402,F401
-                     FootballData)
+                     FootballData, ESPN_PATHS, espn_finished)
 
 
 def fd_results(fd: FootballData, sport: str, needed: list[tuple], t: datetime) -> dict:
@@ -279,12 +284,15 @@ def exposure(state, name) -> float:
     return sum(b["stake"] for b in state["ledgers"][name]["bets"] if b["status"] in ("abierta", "propuesta"))
 
 
-def find_value(ref: dict, s: dict, allowed: set, m: dict | None = None, sport: str = "") -> list[tuple]:
+def find_value(ref: dict, s: dict, allowed: set, m: dict | None = None, sport: str = "",
+               explore: bool = False) -> list[tuple]:
     a = s["avanzado"]
     m = m or METHODS["valor"]
     if m.get("sport") and not sport.startswith(m["sport"]):
         return []
     min_ev = m["min_ev"] if m.get("min_ev") is not None else a["valor_minimo"]
+    if explore:
+        min_ev = min(min_ev, EXPLORE_MIN)
     found = []
     for eid, r in ref.items():
         mins = (pt(r["commence"]) - now()).total_seconds() / 60
@@ -367,7 +375,14 @@ def record_slip(state: dict, b: dict, got: float | None):
 EXTRA_BOOKS = ["williamhill", "sport888", "betsson", "codere_it", "leovegas_se", "unibet_fr"]
 
 
-def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict]:
+def explore_left(state: dict, name: str) -> int:
+    today = now().date().isoformat()
+    used = sum(1 for b in state["ledgers"].get(name, {}).get("bets", [])
+               if b.get("tipo") == "exploracion" and b.get("created", "")[:10] == today)
+    return max(0, EXPLORE_PER_DAY - used)
+
+
+def place(state, s, sport, cands, name: str, m: dict | None = None, explore: bool = False) -> list[dict]:
     """Ficticio: apuesta directamente. Real: crea una propuesta que tú confirmas."""
     a = s["avanzado"]
     m = m or METHODS["valor"]
@@ -397,7 +412,7 @@ def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict
                     note(state, f"real: descarto {r['home']} - {r['away']} en {title}: con la cuota que sueles conseguir "
                                 f"({price:.2f}) ya no hay valor")
                     continue
-        if m.get("stake") == "flat":
+        if explore or m.get("stake") == "flat":
             stake = round(max(a["minima"], bank * FLAT_PCT), 2) if bank >= a["minima"] else 0
         else:
             r_ = rules if not m.get("kf") else st.StakeRules(m["kf"], a["tope"], a["minima"], True)
@@ -413,6 +428,8 @@ def place(state, s, sport, cands, name: str, m: dict | None = None) -> list[dict
              "stake": stake, "bank_pct": round(stake / bank, 4) if bank > 0 else None, "fair_p": round(p, 4), "ev": round(ev, 4), "close_fair_odds": None,
              "status": "propuesta" if name == "real" else "abierta", "pnl": None, "settled": None,
              "method": next((k for k, v in ALL.items() if v is m), "valor")}
+        if explore:
+            b["tipo"] = "exploracion"
         bets.append(b)
         new.append(b)
     return new
@@ -591,7 +608,7 @@ def learn(state: dict) -> dict:
             continue
         per: dict = {}
         for b in state["ledgers"].get("f_" + k, {"bets": []})["bets"]:
-            if b.get("status") not in ("ganada", "perdida") or not b.get("sport"):
+            if b.get("status") not in ("ganada", "perdida") or not b.get("sport") or b.get("tipo") == "exploracion":
                 continue
             x = per.setdefault(family(b["sport"]), {"n": 0, "st": 0.0, "pnl": 0.0, "clv": [], "w": 0})
             x["n"] += 1
@@ -638,7 +655,9 @@ def best_for(learned: dict, sport: str) -> str:
 
 
 def autopilot(state: dict) -> tuple[str | None, list[str]]:
-    table = {k: method_stats(state["ledgers"].get("f_" + k, {"bets": []})["bets"]) for k in ALL if k != "control"}
+    # para decidir qué método pasa a real solo cuentan sus apuestas «de verdad», no las de exploración
+    table = {k: method_stats([b for b in state["ledgers"].get("f_" + k, {"bets": []})["bets"] if b.get("tipo") != "exploracion"])
+             for k in ALL if k != "control"}
     ok = sorted((k for k, x in table.items() if qualifies(x)), key=lambda k: -table[k]["t"])
     best = ok[0] if ok else None
     prev = (state.get("auto") or {}).get("best")
@@ -762,6 +781,13 @@ def can_spend(state: dict, odds: "Odds") -> bool:
 def run(password: str, force: bool = False):
     PLAN_MSG.clear()
     s = merge(DEFAULT_SETTINGS, read_enc("settings.enc", password, {}))
+    if (s.get("ligas_version") or 0) == 4:
+        # NBA: se juega casi a diario (también en parones de selecciones) y sus resultados son gratis
+        s["ligas"] = list(dict.fromkeys(list(s.get("ligas") or []) + ["basketball_nba"]))
+        s["ligas_version"] = PLAN_V
+        (DATA / "settings.enc").write_text(encrypt(s, password))
+        PLAN_MSG.append("⚙️ Añadida la NBA: se juega casi todos los días, así los métodos tienen partidos también "
+                        "cuando el fútbol y el balonmano paran por las selecciones.")
     if (s.get("ligas_version") or 0) < PLAN_V:
         # plan ajustado al cupo gratuito: fútbol, balonmano y tenis, una búsqueda al día
         s["ligas"], s["ligas_version"] = list(PLAN_LEAGUES), PLAN_V
@@ -908,7 +934,44 @@ def run(password: str, force: bool = False):
                     break
             if fd.calls >= 8:          # su límite gratuito es de 10 consultas por minuto
                 break
+    # NBA: resultados gratis de ESPN
+    for sport in ESPN_PATHS:
+        if fdl.get(sport) and pt(fdl[sport]) > t - timedelta(minutes=50):
+            continue
+        need_b = [b for b in all_bets if b["status"] == "abierta" and b["sport"] == sport
+                  and pt(b["commence"]) < t - timedelta(hours=3)]
+        need_l = [e for e in labdata["events"].values() if e[0] == sport and e[5] is None and len(e) >= 8
+                  and 180 < (t.timestamp() // 60 - e[1]) < 5 * 1440]
+        if not need_b and not need_l:
+            continue
+        starts = [pt(b["commence"]) for b in need_b] + [datetime.fromtimestamp(e[1] * 60, UTC) for e in need_l]
+        days = {d.date() for x in starts for d in (x, x - timedelta(days=1))}
+        fdl[sport] = iso(t)
+        try:
+            games = espn_finished(sport, [datetime(d.year, d.month, d.day) for d in days])
+        except Exception as e:
+            DIAG.append(f"espn {sport}: error {type(e).__name__} {str(e)[:80]}")
+            continue
+        res = {g["id"]: g for g in games}
+        # el laboratorio guarda los partidos con el id de The Odds API: se emparejan por nombres y hora
+        lab_res = {}
+        for eid, e in labdata["events"].items():
+            if e[0] != sport or e[5] is not None or len(e) < 8:
+                continue
+            c = datetime.fromtimestamp(e[1] * 60, UTC)
+            for g in games:
+                if st.same_event(g["home_team"], g["away_team"], pt(g["commence_time"]), e[6], e[7], c, max_minutes=90):
+                    lab_res[eid] = dict(g, home_team=e[6], away_team=e[7],
+                                        scores=[{"name": e[6], "score": g["scores"][0]["score"]},
+                                                {"name": e[7], "score": g["scores"][1]["score"]}])
+                    break
+        DIAG.append(f"espn {sport}: {len(games)} terminados, apuestas pendientes {len(need_b)}, lab {len(lab_res)}/{len(need_l)}")
+        fd_done[sport] = res
+        lab_changed |= feed_results(labdata, lab_res)
     for sport, res in fd_done.items():
+        if sport in ESPN_PATHS:
+            apply_scores(all_bets, sport, res, owner, settled_now)
+            continue
         lab_changed |= feed_results(labdata, res)
         apply_scores(all_bets, sport, res, owner, settled_now)
     # 2b) lo que no se haya podido cobrar así: The Odds API, que sí gasta créditos
@@ -1165,13 +1228,21 @@ def run(password: str, force: bool = False):
             for k, m in ALL.items():
                 if k == "auto":
                     continue
-                for b in place(state, s, sport, find_value(ref, s, allowed_f, m, sport), "f_" + k, m):
-                    new_fict.setdefault(b["event"], []).append((m["nombre"], b))
+                placed = place(state, s, sport, find_value(ref, s, allowed_f, m, sport), "f_" + k, m)
+                if not placed and explore_left(state, "f_" + k):
+                    placed = place(state, s, sport, find_value(ref, s, allowed_f, m, sport, explore=True)[:explore_left(state, "f_" + k)],
+                                   "f_" + k, m, explore=True)
+                for b in placed:
+                    new_fict.setdefault(b["event"], []).append((m["nombre"] + (" (exploración)" if b.get("tipo") else ""), b))
                     NEWBETS[k] = NEWBETS.get(k, 0) + 1
             # autodidacta: usa las reglas del mejor método de este deporte, con su propia cartera
             via = best_for(learned, sport)
             vm = ALL[via]
-            for b in place(state, s, sport, find_value(ref, s, allowed_f, vm, sport), "f_auto", vm):
+            placed = place(state, s, sport, find_value(ref, s, allowed_f, vm, sport), "f_auto", vm)
+            if not placed and explore_left(state, "f_auto"):
+                placed = place(state, s, sport, find_value(ref, s, allowed_f, vm, sport, explore=True)[:explore_left(state, "f_auto")],
+                               "f_auto", vm, explore=True)
+            for b in placed:
                 b["method"], b["via"] = "auto", via
                 new_fict.setdefault(b["event"], []).append((f"Autodidacta (como {vm['nombre']})", b))
                 NEWBETS["auto"] = NEWBETS.get("auto", 0) + 1
@@ -1304,7 +1375,8 @@ def run(password: str, force: bool = False):
             st_lab["seeds"] = method_seeds(state)
             labm.evolve(st_lab, labdata, leagues_seen)
             gens += 1
-        live = {p["id"]: method_stats(state["ledgers"].get("f_lab_" + p["id"], {"bets": []})["bets"])
+        live = {p["id"]: method_stats([b for b in state["ledgers"].get("f_lab_" + p["id"], {"bets": []})["bets"]
+                                       if b.get("tipo") != "exploracion"])
                 for p in st_lab.get("promoted", []) if not p.get("retired")}
         for kind, msg in labm.review(st_lab, live):
             report.append(msg)
