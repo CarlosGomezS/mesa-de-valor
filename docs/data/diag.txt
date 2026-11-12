@@ -1,9 +1,6 @@
-2026-11-12T23:08:59Z
+2026-11-12T23:19:29Z
 fd: con clave
-busqueda: ligas={'tennis_wta_finals': 'turno', 'basketball_nba': 'turno'} ultima=2026-11-12T07:03:47Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=6
-valor tennis_wta_finals: 2 partidos (2 sin Pinnacle, con consenso) (2 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +3.2 %, candidatas 1
-valor basketball_nba: 11 partidos (7 sin Pinnacle, con consenso) (11 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +16.4 %, candidatas 1
+busqueda: ligas={} ultima=2026-11-12T23:08:59Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=6
 oddspapi: usadas 0 en esta pasada, 85 este mes de 250
-cuotas: usadas 3, quedan 324, pausa False
-nuevas: agresivo 4, anticipado 4, auto 3, baloncesto 2, cerca 2, consenso 3, control 10, doble 4, estricto 2, favoritos 2, francotirador 1, longshots 1, medias 2, plano 4, tenis 1, valor 4, volumen 4
-cobradas 0, abiertas 5, lab filas 2596, gen 307401
+cuotas: usadas 1, quedan 323, pausa False
+cobradas 0, abiertas 58, lab filas 2607, gen 307601
