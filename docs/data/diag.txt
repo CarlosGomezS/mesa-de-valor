@@ -1,6 +1,10 @@
-2026-11-12T06:53:22Z
+2026-11-12T07:03:47Z
 fd: con clave
-busqueda: ligas={} ultima=2026-11-11T20:07:30Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 6/8) ligas=6
-oddspapi: usadas 0 en esta pasada, 83 este mes de 250
+busqueda: ligas={'soccer_spain_la_liga': 'turno', 'soccer_epl': 'turno', 'soccer_uefa_champs_league': 'turno', 'handball_germany_bundesliga': 'turno'} ultima=2026-11-11T20:07:30Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 6/8) ligas=6
+op soccer_spain_la_liga: sin partidos según football-data, no gasto consulta
+op soccer_epl: sin partidos según football-data, no gasto consulta
+op soccer_uefa_champs_league: sin partidos según football-data, no gasto consulta
+op handball_germany_bundesliga: 0 partidos
+oddspapi: usadas 1 en esta pasada, 84 este mes de 250
 cuotas: usadas 0, quedan 328, pausa False
-cobradas 0, abiertas 5, lab filas 2400, gen 288001
+cobradas 0, abiertas 5, lab filas 2400, gen 288201
