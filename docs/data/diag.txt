@@ -1,6 +1,6 @@
-2026-11-13T10:50:43Z
+2026-11-13T11:00:46Z
 fd: con clave
-busqueda: ligas={'tennis_atp_finals': 'turno'} ultima=2026-11-13T10:40:41Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 7/8) ligas=7
+busqueda: ligas={'tennis_atp_finals': 'turno'} ultima=2026-11-13T10:50:43Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 7/8) ligas=7
 oddspapi: usadas 0 en esta pasada, 92 este mes de 250
 cuotas: usadas 0, quedan 311, pausa False
-cobradas 0, abiertas 84, lab filas 2644, gen 321601
+cobradas 0, abiertas 84, lab filas 2644, gen 321801
