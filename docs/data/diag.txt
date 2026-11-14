@@ -1,6 +1,14 @@
-2026-11-14T22:51:24Z
+2026-11-14T23:01:27Z
 fd: con clave
-busqueda: ligas={} ultima=2026-11-13T23:00:30Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 10/8) ligas=7
+busqueda: ligas={'soccer_spain_la_liga': 'turno', 'soccer_epl': 'turno', 'soccer_uefa_champs_league': 'turno', 'handball_germany_bundesliga': 'turno', 'basketball_nba': 'turno', 'tennis_atp_finals': 'turno', 'tennis_wta_finals': 'turno'} ultima=2026-11-13T23:00:30Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=7
+soccer_spain_la_liga: sin partidos en las próximas 36 h según el calendario (no gasto consulta)
+soccer_epl: sin partidos en las próximas 36 h según el calendario (no gasto consulta)
+soccer_uefa_champs_league: sin partidos en las próximas 36 h según el calendario (no gasto consulta)
+valor handball_germany_bundesliga: 3 partidos (0 sin Pinnacle, con consenso) (3 en ventana), casas ['betsson', 'codere_it', 'sport888', 'winamax_fr'], mejor valor en ventana +5.2 %, candidatas 0
+valor basketball_nba: 5 partidos (0 sin Pinnacle, con consenso) (5 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +2.3 %, candidatas 0
+valor tennis_atp_finals: 2 partidos (0 sin Pinnacle, con consenso) (2 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana -1.6 %, candidatas 0
+tennis_wta_finals: sin partidos en las próximas 36 h según el calendario (no gasto consulta)
 oddspapi: usadas 0 en esta pasada, 103 este mes de 250
-cuotas: usadas 0, quedan 294, pausa False
-cobradas 0, abiertas 63, lab filas 3023, gen 365201
+cuotas: usadas 5, quedan 287, pausa False
+nuevas: agresivo 4, anticipado 3, auto 4, baloncesto 1, balonmano 2, cerca 1, consenso 6, control 10, doble 3, estricto 3, favoritos 3, francotirador 1, medias 2, plano 4, tenis 2, valor 4, volumen 5
+cobradas 34, abiertas 29, lab filas 3165, gen 365401
