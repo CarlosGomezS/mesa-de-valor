@@ -1,6 +1,7 @@
-2026-11-17T03:35:42Z
+2026-11-17T03:45:54Z
 fd: con clave
+espn basketball_nba: 7 terminados, apuestas pendientes 3, lab 4/2
 busqueda: ligas={} ultima=2026-11-16T23:01:40Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=6
 oddspapi: usadas 0 en esta pasada, 119 este mes de 250
 cuotas: usadas 0, quedan 248, pausa False
-cobradas 0, abiertas 61, lab filas 3606, gen 429001
+cobradas 7, abiertas 54, lab filas 3606, gen 429201
