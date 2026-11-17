@@ -1,7 +1,6 @@
-2026-11-17T14:59:56Z
+2026-11-17T15:09:59Z
 fd: con clave
-op resultado: no encuentro Jessica Pegula - Mirra Andreeva
-busqueda: ligas={} ultima=2026-11-17T10:48:22Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 7/8) ligas=6
-oddspapi: usadas 1 en esta pasada, 127 este mes de 250
+busqueda: ligas={} ultima=2026-11-17T10:48:22Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 8/8) ligas=6
+oddspapi: usadas 0 en esta pasada, 127 este mes de 250
 cuotas: usadas 0, quedan 242, pausa False
-cobradas 0, abiertas 81, lab filas 3703, gen 442601
+cobradas 10, abiertas 71, lab filas 3703, gen 442801
