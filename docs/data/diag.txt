@@ -1,6 +1,12 @@
-2026-11-18T22:55:33Z
+2026-11-18T23:05:35Z
 fd: con clave
-busqueda: ligas={} ultima=2026-11-18T05:09:37Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 8/8) ligas=6
+busqueda: ligas={'soccer_spain_la_liga': 'turno', 'soccer_epl': 'turno', 'soccer_uefa_champs_league': 'turno', 'handball_germany_bundesliga': 'turno', 'basketball_nba': 'turno'} ultima=2026-11-18T05:09:37Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=6
+soccer_spain_la_liga: sin partidos en las próximas 36 h según el calendario (no gasto consulta)
+soccer_epl: sin partidos en las próximas 36 h según el calendario (no gasto consulta)
+soccer_uefa_champs_league: sin partidos en las próximas 36 h según el calendario (no gasto consulta)
+handball_germany_bundesliga: sin partidos en las próximas 36 h según el calendario (no gasto consulta)
+valor basketball_nba: 12 partidos (0 sin Pinnacle, con consenso) (12 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +8.0 %, candidatas 1
 oddspapi: usadas 0 en esta pasada, 135 este mes de 250
-cuotas: usadas 0, quedan 225, pausa False
-cobradas 0, abiertas 70, lab filas 3911, gen 480801
+cuotas: usadas 2, quedan 222, pausa False
+nuevas: agresivo 1, auto 1, baloncesto 1, cerca 1, consenso 2, control 8, doble 1, estricto 1, favoritos 1, francotirador 1, medias 1, plano 1, valor 1, volumen 1
+cobradas 0, abiertas 70, lab filas 4117, gen 481001
