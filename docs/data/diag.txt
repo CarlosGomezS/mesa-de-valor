@@ -1,8 +1,6 @@
-2026-11-18T05:09:37Z
+2026-11-18T05:19:55Z
 fd: con clave
-busqueda: ligas={'tennis_atp_finals': 'partidos pronto'} ultima=2026-11-17T23:01:33Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=6
-valor tennis_atp_finals: 3 partidos (1 sin Pinnacle, con consenso) (3 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana -0.1 %, candidatas 0
+busqueda: ligas={} ultima=2026-11-18T05:09:37Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=6
 oddspapi: usadas 0 en esta pasada, 127 este mes de 250
-cuotas: usadas 2, quedan 227, pausa False
-nuevas: agresivo 1, anticipado 2, auto 1, consenso 1, control 2, doble 2, estricto 1, favoritos 2, medias 2, plano 1, steam 1, tenis 1, valor 1, volumen 1
-cobradas 0, abiertas 73, lab filas 3911, gen 459601
+cuotas: usadas 0, quedan 227, pausa False
+cobradas 0, abiertas 92, lab filas 3911, gen 459801
