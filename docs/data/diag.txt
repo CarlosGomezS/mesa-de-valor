@@ -1,10 +1,6 @@
-2026-11-20T23:02:10Z
+2026-11-20T23:12:43Z
 fd: con clave
-busqueda: ligas={'soccer_epl': 'turno', 'soccer_uefa_champs_league': 'turno', 'basketball_nba': 'partidos pronto'} ultima=2026-11-20T16:18:22Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=6
-valor soccer_epl: 7 partidos (0 sin Pinnacle, con consenso) (7 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +1.5 %, candidatas 0
-soccer_uefa_champs_league: sin partidos en las próximas 36 h según el calendario (no gasto consulta)
-valor basketball_nba: 9 partidos (0 sin Pinnacle, con consenso) (9 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +0.1 %, candidatas 0
+busqueda: ligas={} ultima=2026-11-20T23:02:10Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=6
 oddspapi: usadas 0 en esta pasada, 152 este mes de 250
-cuotas: usadas 4, quedan 184, pausa False
-nuevas: cerca 1, longshots 1, medias 1, steam 1
-cobradas 26, abiertas 103, lab filas 5085, gen 537401
+cuotas: usadas 2, quedan 181, pausa False
+cobradas 0, abiertas 107, lab filas 5092, gen 537601
