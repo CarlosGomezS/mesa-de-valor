@@ -1,6 +1,8 @@
-2026-11-21T19:40:22Z
+2026-11-21T19:50:28Z
 fd: con clave
+fd soccer_epl: pedidos 1, encontrados 1
+fd soccer_spain_la_liga: pedidos 1, encontrados 1
 busqueda: ligas={} ultima=2026-11-20T23:02:10Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 16/8) ligas=6
 oddspapi: usadas 0 en esta pasada, 168 este mes de 250
 cuotas: usadas 0, quedan 171, pausa False
-cobradas 0, abiertas 54, lab filas 5233, gen 562001
+cobradas 0, abiertas 54, lab filas 5233, gen 562201
