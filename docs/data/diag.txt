@@ -1,14 +1,6 @@
-2026-11-21T23:09:48Z
+2026-11-21T23:19:53Z
 fd: con clave
-fd soccer_spain_la_liga: pedidos 10, encontrados 1
-busqueda: ligas={'soccer_spain_la_liga': 'turno', 'tennis_atp_finals': 'turno', 'handball_germany_bundesliga': 'turno', 'soccer_epl': 'turno', 'soccer_uefa_champs_league': 'turno', 'basketball_nba': 'turno'} ultima=2026-11-20T23:02:10Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=6
-valor soccer_spain_la_liga: 4 partidos (0 sin Pinnacle, con consenso) (4 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +2.9 %, candidatas 0
-valor tennis_atp_finals: 1 partidos (0 sin Pinnacle, con consenso) (1 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana -1.0 %, candidatas 0
-valor handball_germany_bundesliga: 4 partidos (0 sin Pinnacle, con consenso) (4 en ventana), casas ['betsson', 'codere_it', 'sport888', 'winamax_fr'], mejor valor en ventana +4.4 %, candidatas 0
-valor soccer_epl: 2 partidos (0 sin Pinnacle, con consenso) (2 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +0.5 %, candidatas 0
-soccer_uefa_champs_league: sin partidos en las próximas 36 h según el calendario (no gasto consulta)
-valor basketball_nba: 6 partidos (1 sin Pinnacle, con consenso) (6 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +0.8 %, candidatas 0
+busqueda: ligas={} ultima=2026-11-21T23:09:48Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=6
 oddspapi: usadas 0 en esta pasada, 168 este mes de 250
-cuotas: usadas 7, quedan 162, pausa False
-nuevas: agresivo 3, anticipado 3, auto 5, baloncesto 2, balonmano 1, cerca 2, consenso 8, control 10, doble 2, empates 1, estricto 2, favoritos 3, francotirador 1, futbol 2, longshots 2, medias 2, plano 3, tenis 1, valor 3, volumen 4
-cobradas 33, abiertas 21, lab filas 5528, gen 566201
+cuotas: usadas 1, quedan 161, pausa False
+cobradas 0, abiertas 81, lab filas 5534, gen 566401
