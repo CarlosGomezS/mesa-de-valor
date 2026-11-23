@@ -1,10 +1,6 @@
-2026-11-23T23:01:24Z
+2026-11-23T23:11:47Z
 fd: con clave
-busqueda: ligas={'soccer_uefa_champs_league': 'turno', 'handball_germany_bundesliga': 'turno', 'basketball_nba': 'partidos pronto'} ultima=2026-11-23T16:16:49Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=5
-valor soccer_uefa_champs_league: 9 partidos (0 sin Pinnacle, con consenso) (9 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +1.3 %, candidatas 0
-handball_germany_bundesliga: sin partidos en las próximas 36 h según el calendario (no gasto consulta)
-valor basketball_nba: 10 partidos (0 sin Pinnacle, con consenso) (10 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +0.8 %, candidatas 0
+busqueda: ligas={} ultima=2026-11-23T23:01:24Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=5
 oddspapi: usadas 0 en esta pasada, 185 este mes de 250
-cuotas: usadas 4, quedan 132, pausa False
-nuevas: anticipado 2, auto 3, cerca 2, consenso 4, doble 2, futbol 1, longshots 2, steam 1
-cobradas 10, abiertas 23, lab filas 6368, gen 623601
+cuotas: usadas 2, quedan 131, pausa False
+cobradas 0, abiertas 40, lab filas 6382, gen 623801
