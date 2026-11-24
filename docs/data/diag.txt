@@ -1,7 +1,7 @@
-2026-11-24T19:52:03Z
+2026-11-24T20:02:05Z
 fd: con clave
+fd soccer_uefa_champs_league: pedidos 2, encontrados 2
 busqueda: ligas={} ultima=2026-11-24T11:53:51Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 3/8) ligas=5
-op soccer_uefa_champs_league: sin partidos según football-data, no gasto consulta
 oddspapi: usadas 0 en esta pasada, 188 este mes de 250
 cuotas: usadas 0, quedan 118, pausa False
-cobradas 0, abiertas 38, lab filas 6882, gen 648201
+cobradas 2, abiertas 36, lab filas 6882, gen 648401
