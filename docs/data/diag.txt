@@ -1,6 +1,8 @@
-2026-11-24T09:41:00Z
+2026-11-24T09:51:27Z
 fd: con clave
-busqueda: ligas={} ultima=2026-11-23T23:01:24Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=5
+busqueda: ligas={'soccer_uefa_champs_league': 'partidos pronto'} ultima=2026-11-23T23:01:24Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/8) ligas=5
+valor soccer_uefa_champs_league: 18 partidos (0 sin Pinnacle, con consenso) (18 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +2.3 %, candidatas 0
 oddspapi: usadas 0 en esta pasada, 185 este mes de 250
-cuotas: usadas 0, quedan 119, pausa False
-cobradas 0, abiertas 13, lab filas 6494, gen 636201
+cuotas: usadas 1, quedan 118, pausa False
+nuevas: agresivo 2, anticipado 2, auto 2, consenso 3, doble 1, estricto 2, favoritos 2, futbol 1, longshots 1, medias 2, plano 2, steam 1, valor 2, volumen 2
+cobradas 0, abiertas 13, lab filas 6882, gen 636401
