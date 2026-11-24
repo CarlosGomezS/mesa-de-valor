@@ -1,7 +1,7 @@
-2026-11-24T16:40:36Z
+2026-11-24T16:50:40Z
 fd: con clave
 busqueda: ligas={} ultima=2026-11-24T11:53:51Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 2/8) ligas=5
 op soccer_uefa_champs_league: sin partidos según football-data, no gasto consulta
 oddspapi: usadas 0 en esta pasada, 187 este mes de 250
 cuotas: usadas 0, quedan 118, pausa False
-cobradas 0, abiertas 38, lab filas 6882, gen 644401
+cobradas 0, abiertas 38, lab filas 6882, gen 644601
