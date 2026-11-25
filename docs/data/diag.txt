@@ -1,6 +1,6 @@
-2026-11-25T21:20:47Z
+2026-11-25T21:30:54Z
 fd: con clave
 busqueda: ligas={} ultima=2026-11-25T15:51:34Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 3/8) ligas=5
 oddspapi: usadas 0 en esta pasada, 196 este mes de 250
 cuotas: usadas 0, quedan 100, pausa False
-cobradas 0, abiertas 50, lab filas 7702, gen 678377
+cobradas 0, abiertas 50, lab filas 7702, gen 678577
