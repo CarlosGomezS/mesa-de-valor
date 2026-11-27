@@ -1,6 +1,9 @@
-2026-11-27T22:50:04Z
+2026-11-27T23:00:25Z
 fd: con clave
-busqueda: ligas={} ultima=2026-11-27T17:50:37Z cada=24h oddsapi_pausa=False oddspapi_ok=False (dia 9/7) ligas=5
+busqueda: ligas={'soccer_uefa_champs_league': 'turno', 'basketball_nba': 'partidos pronto'} ultima=2026-11-27T17:50:37Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
+soccer_uefa_champs_league: sin partidos en las próximas 36 h según el calendario (no gasto consulta)
+valor basketball_nba: 11 partidos (0 sin Pinnacle, con consenso) (11 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +0.9 %, candidatas 0
 oddspapi: usadas 0 en esta pasada, 220 este mes de 250
-cuotas: usadas 0, quedan 64, pausa False
-cobradas 0, abiertas 103, lab filas 8768, gen 737377
+cuotas: usadas 2, quedan 61, pausa False
+nuevas: auto 1, cerca 1, consenso 1
+cobradas 37, abiertas 66, lab filas 8925, gen 737577
