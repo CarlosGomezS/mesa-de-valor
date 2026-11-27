@@ -1,8 +1,6 @@
-2026-11-27T16:16:55Z
+2026-11-27T16:27:18Z
 fd: con clave
-busqueda: ligas={'basketball_nba': 'partidos pronto'} ultima=2026-11-27T16:06:31Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
-valor basketball_nba: 11 partidos (0 sin Pinnacle, con consenso) (11 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +1.1 %, candidatas 0
+busqueda: ligas={} ultima=2026-11-27T16:16:55Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
 oddspapi: usadas 0 en esta pasada, 211 este mes de 250
-cuotas: usadas 2, quedan 71, pausa False
-nuevas: auto 1, baloncesto 2, consenso 1, control 1, medias 1, steam 2
-cobradas 0, abiertas 117, lab filas 8673, gen 729777
+cuotas: usadas 0, quedan 71, pausa False
+cobradas 0, abiertas 125, lab filas 8673, gen 729977
