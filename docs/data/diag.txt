@@ -1,6 +1,9 @@
-2026-11-27T11:32:18Z
+2026-11-27T11:42:36Z
 fd: con clave
-busqueda: ligas={} ultima=2026-11-27T10:00:23Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
+busqueda: ligas={'soccer_spain_la_liga': 'turno', 'soccer_epl': 'turno'} ultima=2026-11-27T10:00:23Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
+valor soccer_spain_la_liga: 5 partidos (0 sin Pinnacle, con consenso) (5 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +0.8 %, candidatas 0
+valor soccer_epl: 4 partidos (0 sin Pinnacle, con consenso) (4 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'sport888', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana -0.8 %, candidatas 0
 oddspapi: usadas 0 en esta pasada, 211 este mes de 250
-cuotas: usadas 0, quedan 78, pausa False
-cobradas 0, abiertas 86, lab filas 8266, gen 724177
+cuotas: usadas 2, quedan 76, pausa False
+nuevas: agresivo 2, anticipado 1, auto 1, consenso 4, control 3, doble 1, estricto 1, favoritos 2, francotirador 1, futbol 2, longshots 2, medias 1, plano 2, valor 2, volumen 2
+cobradas 0, abiertas 86, lab filas 8485, gen 724377
