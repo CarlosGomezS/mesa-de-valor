@@ -1,6 +1,8 @@
-2026-11-27T09:50:02Z
+2026-11-27T10:00:23Z
 fd: con clave
-busqueda: ligas={} ultima=2026-11-26T23:06:05Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
+busqueda: ligas={'handball_germany_bundesliga': 'turno'} ultima=2026-11-26T23:06:05Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
+valor handball_germany_bundesliga: 4 partidos (0 sin Pinnacle, con consenso) (4 en ventana), casas ['betsson', 'codere_it', 'sport888', 'winamax_fr'], mejor valor en ventana +6.4 %, candidatas 0
 oddspapi: usadas 0 en esta pasada, 211 este mes de 250
-cuotas: usadas 0, quedan 79, pausa False
-cobradas 0, abiertas 80, lab filas 8240, gen 722177
+cuotas: usadas 1, quedan 78, pausa False
+nuevas: anticipado 1, auto 1, consenso 1, doble 1, estricto 1, steam 1
+cobradas 0, abiertas 80, lab filas 8266, gen 722377
