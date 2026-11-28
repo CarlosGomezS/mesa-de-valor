@@ -1,8 +1,7 @@
-2026-11-28T05:07:39Z
+2026-11-28T05:17:55Z
 fd: con clave
-busqueda: ligas={'soccer_spain_la_liga': 'partidos pronto'} ultima=2026-11-27T23:00:25Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
-valor soccer_spain_la_liga: 6 partidos (0 sin Pinnacle, con consenso) (6 en ventana), casas ['betfair_ex_eu', 'betfair_sb_uk', 'betsson', 'codere_it', 'leovegas_se', 'unibet_fr', 'williamhill', 'winamax_fr'], mejor valor en ventana +1.6 %, candidatas 0
+espn basketball_nba: 11 terminados, apuestas pendientes 1, lab 5/1
+busqueda: ligas={} ultima=2026-11-28T05:07:39Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
 oddspapi: usadas 0 en esta pasada, 220 este mes de 250
-cuotas: usadas 1, quedan 48, pausa False
-nuevas: agresivo 1, anticipado 2, auto 2, consenso 1, control 3, doble 1, estricto 1, favoritos 1, futbol 1, medias 1, plano 1, valor 1, volumen 1
-cobradas 0, abiertas 47, lab filas 9244, gen 744755
+cuotas: usadas 0, quedan 48, pausa False
+cobradas 17, abiertas 47, lab filas 9244, gen 744944
