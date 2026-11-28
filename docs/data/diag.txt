@@ -1,6 +1,9 @@
-2026-11-28T09:54:42Z
+2026-11-28T10:04:56Z
 fd: con clave
-busqueda: ligas={} ultima=2026-11-28T07:00:27Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
+busqueda: ligas={'handball_germany_bundesliga': 'partidos pronto'} ultima=2026-11-28T07:00:27Z cada=24h oddsapi_pausa=False oddspapi_ok=True (dia 0/7) ligas=5
+valor handball_germany_bundesliga: 4 partidos (0 sin Pinnacle, con consenso) (4 en ventana), casas ['betsson', 'codere_it', 'sport888', 'winamax_fr'], mejor valor en ventana +4.3 %, candidatas 0
+op soccer_spain_la_liga: sin partidos según football-data, no gasto consulta
 oddspapi: usadas 0 en esta pasada, 220 este mes de 250
-cuotas: usadas 0, quedan 47, pausa False
-cobradas 0, abiertas 62, lab filas 9453, gen 749813
+cuotas: usadas 1, quedan 46, pausa False
+nuevas: agresivo 2, anticipado 1, balonmano 2, favoritos 2, plano 2, valor 2, volumen 2
+cobradas 0, abiertas 62, lab filas 9480, gen 749989
